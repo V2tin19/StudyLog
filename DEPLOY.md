@@ -52,8 +52,8 @@
 2. 左侧菜单找 **「存储和数据库」**（Storage & Databases）→ **「D1 SQL 数据库」**
 3. 点 **「创建数据库」**，名字填 `studylog-db`，创建
 4. 进入这个数据库，点 **「Console」**（控制台）标签
-5. 打开项目里的 `schema.sql`。这个文件**一行就是一条完整语句、不含任何注释**（这是故意的，见下面说明）
-6. 先尝试**整段复制粘贴**到输入框，点 **「执行 / Execute」**
+5. 打开项目里的 `schema.sql`。开头那几张表（diary / site_meta / doc）特意写成**一行一条、不含注释**；从「留言」往后的新表保留了说明性注释 —— 整段粘进去时输入框可能只吃到一段
+6. 先尝试**整段复制粘贴**到输入框，点 **「执行 / Execute」**；不顺利就按下面的说明分成几段来，或者直接抄写作台里那张卡的建表 SQL（卡上有「复制 SQL」按钮）
 
 成功的标志：最后会返回一张表名列表，里面有 `diary`、`site_meta` 和 `doc`。
 
@@ -111,7 +111,31 @@ CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFA
 
 粘进 D1 控制台执行就行，`IF NOT EXISTS` 保证不会动到已有数据。
 
-> 没补这条会怎样：日记照常同步，但公开页的「学习 / 日程 / 目标」三个板块读不到数据，写作台右上角会显示**「部分同步」**（橙色），鼠标停上去会写明原因。不会静默失败。
+> 没补这条会怎样：日记照常同步，但公开页的「阅读 / 日程 / 目标」三个板块读不到数据，写作台右上角会显示**「部分同步」**（橙色），鼠标停上去会写明原因。不会静默失败。
+
+### 后来加的三张表：comments / book_suggestions / goal_suggestions
+
+留言、书目荐读、目标推荐分别是后面几轮才有的功能。它们是**访客也能写**的那几个入口，各有一张表，外加共用的一张拉黑名单。已有数据库直接补这几条，不用重来：
+
+```sql
+CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, scope TEXT NOT NULL DEFAULT 'diary', target TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '', content TEXT NOT NULL, created_at TEXT NOT NULL, ip_hash TEXT NOT NULL DEFAULT '', hidden INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(scope, target, hidden, id);
+CREATE INDEX IF NOT EXISTS idx_comments_ip ON comments(ip_hash, created_at);
+CREATE TABLE IF NOT EXISTS comment_blocklist (ip_hash TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS book_suggestions (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT NOT NULL DEFAULT '', imported_at TEXT NOT NULL DEFAULT '', ip_hash TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS idx_suggest_status ON book_suggestions(status, id);
+CREATE INDEX IF NOT EXISTS idx_suggest_ip ON book_suggestions(ip_hash, created_at);
+CREATE TABLE IF NOT EXISTS goal_suggestions (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT NOT NULL DEFAULT '', imported_at TEXT NOT NULL DEFAULT '', ip_hash TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS idx_gsuggest_status ON goal_suggestions(status, id);
+CREATE INDEX IF NOT EXISTS idx_gsuggest_ip ON goal_suggestions(ip_hash, created_at);
+```
+
+> **没建这些表会怎样**：对应的那一块只是**不显示**，不会报错。
+> 写作台那一页的卡片上会给出「表还没建」和可复制的 SQL；公开页则是整块不出现。
+> 所以第一次上线不用慌 —— 功能是好的，只是还缺一张表。
+>
+> `book_suggestions` 和 `goal_suggestions` 字段**刻意一模一样**（目标没有「作者」，那一列恒为空串），
+> 换来后端一个分支都不用写。以后再加同类功能，照这个形状复制一张表即可。
 
 ---
 
@@ -266,7 +290,7 @@ crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-','')
 2. **Cloudflare 侧**：Pages 项目 → **设置** → **构建与部署** → 找到 Git 仓库那一栏 → 点 **管理 / 重新连接** → 跳转 GitHub 授权 → 仓库选 `V2tin19/StudyLog`，生产分支选 `main`。
 3. ⚠️ **重连时不要改动构建配置** —— 框架预设仍然是 `None`、构建命令仍然留空、输出目录仍然是 `/`。填错会导致部署失败或文件缺失。
 4. 连好后手动触发一次：**部署**（Deployments）→ 最新一条 → 右侧 `···` → **重试部署**。
-5. 验证：打开 `https://你的项目.pages.dev/`，标题应该变成**「果冻的成长记录」**（公开页）；`/write` 应该显示**锁屏**。
+5. 验证：打开 `https://你的项目.pages.dev/`，标题应该变成**「学习日报」**（公开页）；`/write` 应该显示**锁屏**。
 
 > D1 绑定和环境变量是独立配置，重连 Git **不会**丢掉它们，不用重新配。
 
@@ -276,7 +300,7 @@ crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-','')
 
 | 看哪里 | 最新版应该是 | 还是旧版的话 |
 | --- | --- | --- |
-| `/` 的浏览器标签标题 | `果冻的成长记录` | `StudyLog · 个人日常记录` |
+| `/` 的浏览器标签标题 | `学习日报` | `StudyLog · 个人日常记录` |
 | `/` 页面上有没有「写日记」按钮 | 没有（公开页只有列表，没有任何站主编辑入口） | 有 |
 | `/write` | 显示要输入令牌的锁屏 | 直接进编辑器，不问暗号 |
 
