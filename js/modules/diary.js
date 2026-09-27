@@ -71,22 +71,33 @@ const Diary = {
   /* ---- 渲染 ---- */
   renderDiaryPage(container) {
     const today = Utils.today();
+    const entry = this.getEntry(today);
+    const hasToday = !!(entry && entry.content);
+    const todayLabel = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
     container.innerHTML = `
-      <div class="card mb-16 text-center">
-        <button class="btn btn-primary" style="padding:12px 40px;font-size:1rem;border-radius:var(--radius-lg);" onclick="Diary.showEditor('${today}')">写日记</button>
+      <div class="card mb-16">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-bold" style="font-size:1.05rem;">${todayLabel}</div>
+            <div class="text-sm" style="color:${hasToday ? 'var(--accent-green)' : 'var(--text-muted)'};margin-top:2px;">${hasToday ? '已写' : '未写'}</div>
+          </div>
+          <button class="btn btn-primary" style="padding:12px 32px;font-size:1rem;border-radius:var(--radius-lg);" onclick="Diary.showEditor('${today}')">写日记</button>
+        </div>
       </div>
       <div id="diary-today-list"></div>
-      <div class="card">
+      <div class="card mb-16">
         <div class="card-title">
           <span>日记月历</span>
           <button class="btn btn-sm btn-secondary" onclick="Diary.showSearch()">搜索</button>
         </div>
         <div id="diary-calendar"></div>
       </div>
+      <div id="diary-all-list"></div>
     `;
 
     this.renderTodayList(document.getElementById('diary-today-list'));
     this.renderCalendar(document.getElementById('diary-calendar'), today);
+    this.renderAllList(document.getElementById('diary-all-list'));
   },
 
   /* 今日日记列表（只呈现当日） */
@@ -96,7 +107,7 @@ const Diary = {
     if (!entry || !entry.content) {
       container.innerHTML = `
         <div class="card mb-16">
-          <div class="card-title"><span>日记列表</span></div>
+          <div class="card-title"><span>今日日记</span></div>
           <div class="empty-state-text">今天还没有写日记</div>
         </div>
       `;
@@ -105,7 +116,7 @@ const Diary = {
     const preview = entry.content.replace(/<[^>]*>/g, '').slice(0, 120);
     container.innerHTML = `
       <div class="card mb-16">
-        <div class="card-title"><span>日记列表</span></div>
+        <div class="card-title"><span>今日日记</span></div>
         <div class="list-item">
           <div class="list-item-main" onclick="Diary.showEditor('${today}')" style="cursor:pointer;">
             <div class="list-item-title">${today}</div>
@@ -118,6 +129,39 @@ const Diary = {
         </div>
       </div>
     `;
+  },
+
+  /* 全部日记列表（位于月历下方） */
+  renderAllList(container) {
+    const dates = this.getActiveDates();
+    if (dates.length === 0) {
+      container.innerHTML = `
+        <div class="card">
+          <div class="card-title"><span>日记列表</span></div>
+          <div class="empty-state-text">还没有日记</div>
+        </div>
+      `;
+      return;
+    }
+    let html = '<div class="card"><div class="card-title"><span>日记列表</span></div>';
+    dates.forEach(d => {
+      const entry = Store.getDate(this.STORAGE_KEY, d);
+      if (!entry || !entry.content) return;
+      const preview = entry.content.replace(/<[^>]*>/g, '').slice(0, 60);
+      html += `
+        <div class="list-item">
+          <div class="list-item-main" onclick="Diary.showEditor('${d}')" style="cursor:pointer;">
+            <div class="list-item-title">${d}</div>
+            <div class="list-item-sub">${preview || '(空)'}</div>
+          </div>
+          <div class="list-item-actions">
+            <button class="btn btn-sm btn-secondary" onclick="Diary.showEditor('${d}')">编辑</button>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
   },
 
   _calMonth: null,
