@@ -1,7 +1,10 @@
 # StudyLog · 个人日常记录
 已部署到https://studylog-eo0.pages.dev/
+
 该项目改自https://github.com/MrWonderA/daily-tracker 用于记录自己的学习日志，营造的在场感对我的学习有很大推动作用。每天的汇报也会让生活看上去更充实（大概）。
+
 本质一个前端小网页，通过Cloudflare部署到线上，日记的写作与同步数据使用CF提供的SQLite完成。
+
 AI写的踩坑记录都在DEPLOY.md，如果你也想构建一个的话记得看看。
 
 ---
