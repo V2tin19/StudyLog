@@ -10,14 +10,14 @@ const Diary = {
   TEMPLATE_KEY: 'diary_template',
 
   moods: [
-    { emoji: '😊', label: '开心', value: 'happy' },
-    { emoji: '😐', label: '平淡', value: 'neutral' },
-    { emoji: '😴', label: '疲惫', value: 'tired' },
-    { emoji: '😰', label: '焦虑', value: 'anxious' },
-    { emoji: '💪', label: '充实', value: 'fulfilled' },
-    { emoji: '😢', label: '难过', value: 'sad' },
-    { emoji: '😤', label: '烦躁', value: 'irritated' },
-    { emoji: '🥳', label: '兴奋', value: 'excited' }
+    { label: '开心', value: 'happy' },
+    { label: '平淡', value: 'neutral' },
+    { label: '疲惫', value: 'tired' },
+    { label: '焦虑', value: 'anxious' },
+    { label: '充实', value: 'fulfilled' },
+    { label: '难过', value: 'sad' },
+    { label: '烦躁', value: 'irritated' },
+    { label: '兴奋', value: 'excited' }
   ],
 
   init() {
@@ -96,9 +96,9 @@ const Diary = {
     return keys.map(k => ({ date: k, mood: Store.getDate(this.MOOD_KEY, k) }));
   },
 
-  getMoodEmoji(moodVal) {
+  getMoodLabel(moodVal) {
     const m = this.moods.find(m => m.value === moodVal);
-    return m ? m.emoji : '';
+    return m ? m.label : '';
   },
 
   /* ---- 便签 ---- */
@@ -130,15 +130,15 @@ const Diary = {
     container.innerHTML = `
       <div class="card mb-16">
         <div class="card-title">
-          <span>📖 日记</span>
+          <span>日记</span>
           <div class="flex gap-8">
-            <button class="btn btn-sm btn-secondary" onclick="Diary.showSearch()">🔍 搜索</button>
-            <button class="btn btn-sm btn-secondary" onclick="Diary.showNotes()">📌 便签</button>
+            <button class="btn btn-sm btn-secondary" onclick="Diary.showSearch()">搜索</button>
+            <button class="btn btn-sm btn-secondary" onclick="Diary.showNotes()">便签</button>
           </div>
         </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-          <button class="btn btn-sm btn-primary" onclick="Diary.showEditor('${today}')">✏️ 写日记</button>
-          <button class="btn btn-sm btn-secondary" onclick="Diary.showReviewEditor('${today}')">📋 今日复盘</button>
+          <button class="btn btn-sm btn-primary" onclick="Diary.showEditor('${today}')">写日记</button>
+          <button class="btn btn-sm btn-secondary" onclick="Diary.showReviewEditor('${today}')">今日复盘</button>
         </div>
         <div id="diary-calendar"></div>
       </div>
@@ -232,20 +232,20 @@ const Diary = {
     const normal = dates.filter(d => !pinned.includes(d));
 
     if (dates.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📝</div><div class="empty-state-text">还没有日记，点击日期开始记录吧</div></div>';
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-text">还没有日记，点击日期开始记录吧</div></div>';
       return;
     }
 
-    let html = '<div class="card"><div class="card-title"><span>📜 日记列表</span></div>';
+    let html = '<div class="card"><div class="card-title"><span>日记列表</span></div>';
     [...pinned, ...normal].forEach(d => {
       const entry = Store.getDate(this.STORAGE_KEY, d);
       if (!entry || !entry.content) return;
       const preview = entry.content.replace(/<[^>]*>/g, '').slice(0, 60);
-      const moodEmoji = entry.mood ? this.getMoodEmoji(entry.mood) : '';
+      const moodLabel = entry.mood ? this.getMoodLabel(entry.mood) : '';
       html += `
         <div class="list-item">
           <div class="list-item-main" onclick="Diary.showEditor('${d}')" style="cursor:pointer;">
-            <div class="list-item-title">${entry.pinned ? '📌 ' : ''}${d} ${moodEmoji}</div>
+            <div class="list-item-title">${entry.pinned ? '置顶 · ' : ''}${d} ${moodLabel}</div>
             <div class="list-item-sub">${preview || '(空)'}</div>
           </div>
           <div class="list-item-actions">
@@ -263,13 +263,13 @@ const Diary = {
     const entry = this.getEntry(dateStr) || { content: '', mood: '', review: '', images: [] };
     const container = document.getElementById('page-container');
     const moodOptions = this.moods.map(m =>
-      `<button class="mood-btn${entry.mood === m.value ? ' selected' : ''}" data-mood="${m.value}" onclick="Diary.selectMood('${m.value}')">${m.emoji}</button>`
+      `<button class="mood-btn${entry.mood === m.value ? ' selected' : ''}" data-mood="${m.value}" onclick="Diary.selectMood('${m.value}')">${m.label}</button>`
     ).join('');
 
     container.innerHTML = `
       <div class="card page-enter">
         <div class="card-title">
-          <span>✏️ ${dateStr} 日记</span>
+          <span>${dateStr} 日记</span>
           <button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button>
         </div>
         <div class="form-group">
@@ -283,18 +283,18 @@ const Diary = {
           <textarea class="textarea" id="diary-content" rows="8" placeholder="记录今天的点点滴滴…">${entry.content || ''}</textarea>
         </div>
         <div class="form-group">
-          <label class="form-label">📋 每日复盘</label>
+          <label class="form-label">每日复盘</label>
           <textarea class="textarea" id="diary-review" rows="4" placeholder="今日复盘…">${entry.review || ''}</textarea>
         </div>
         <div class="form-group">
-          <label class="form-label">🖼️ 图片</label>
+          <label class="form-label">图片</label>
           <input type="file" accept="image/*" id="diary-image-input" class="input" multiple>
           <div id="diary-image-preview" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             ${(entry.images || []).map(img => `<div style="position:relative;"><img src="${img}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;"><button class="btn btn-sm btn-danger" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;padding:0;font-size:10px;" onclick="Diary.removeImage('${dateStr}','${img}')">×</button></div>`).join('')}
           </div>
         </div>
         <div class="flex gap-8 mt-16">
-          <button class="btn btn-primary" onclick="Diary.saveEditor('${dateStr}')">💾 保存</button>
+          <button class="btn btn-primary" onclick="Diary.saveEditor('${dateStr}')">保存</button>
           <button class="btn btn-secondary" onclick="App.refresh()">取消</button>
         </div>
       </div>
@@ -354,7 +354,7 @@ const Diary = {
     container.innerHTML = `
       <div class="card page-enter">
         <div class="card-title">
-          <span>📋 ${dateStr} 复盘</span>
+          <span>${dateStr} 复盘</span>
           <button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button>
         </div>
         <div class="form-group">
@@ -362,7 +362,7 @@ const Diary = {
           <textarea class="textarea" id="review-content" rows="8" placeholder="今日复盘…">${entry.review || tpl}</textarea>
         </div>
         <div class="flex gap-8 mt-16">
-          <button class="btn btn-primary" onclick="Diary.saveReview('${dateStr}')">💾 保存</button>
+          <button class="btn btn-primary" onclick="Diary.saveReview('${dateStr}')">保存</button>
           <button class="btn btn-secondary" onclick="App.refresh()">取消</button>
         </div>
       </div>
@@ -381,7 +381,7 @@ const Diary = {
     container.innerHTML = `
       <div class="card page-enter">
         <div class="card-title">
-          <span>🔍 搜索日记</span>
+          <span>搜索日记</span>
           <button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button>
         </div>
         <div class="form-group">
@@ -421,7 +421,7 @@ const Diary = {
     container.innerHTML = `
       <div class="card page-enter">
         <div class="card-title">
-          <span>📌 随手便签</span>
+          <span>随手便签</span>
           <button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button>
         </div>
         <div class="flex gap-8 mb-16">

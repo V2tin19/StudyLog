@@ -235,9 +235,9 @@ const Study = {
     container.innerHTML = `
       <div class="card-grid card-grid-2">
         <div class="card">
-          <div class="card-title"><span>✅ 打卡签到</span></div>
+          <div class="card-title"><span>打卡签到</span></div>
           <div class="text-center">
-            <div class="stat-value" style="font-size:2rem;">${checkedIn ? '✅' : '⬜'}</div>
+            <div class="stat-value" style="font-size:2rem;">${checkedIn ? '已签到' : '未签到'}</div>
             <div class="mt-8">
               <button class="btn ${checkedIn ? 'btn-secondary' : 'btn-primary'}" onclick="Study.toggleCheckin()">
                 ${checkedIn ? '已签到' : '今日打卡'}
@@ -247,7 +247,7 @@ const Study = {
           </div>
         </div>
         <div class="card">
-          <div class="card-title"><span>⏱️ 今日学习</span></div>
+          <div class="card-title"><span>今日学习</span></div>
           <div class="text-center">
             <div class="stat-value">${this.formatDuration(todayDuration)}</div>
             <div class="text-sm text-muted mt-8">本月累计 ${this.formatDuration(monthDuration)}</div>
@@ -256,7 +256,7 @@ const Study = {
       </div>
       <div class="card mt-16">
         <div class="card-title">
-          <span>📋 今日任务 (${doneTasks}/${todayTasks.length})</span>
+          <span>今日任务 (${doneTasks}/${todayTasks.length})</span>
           <button class="btn btn-sm btn-primary" onclick="Study.showAddTask()">+ 添加</button>
         </div>
         <div id="study-task-list">
@@ -275,7 +275,7 @@ const Study = {
       </div>
       <div class="card mt-16">
         <div class="card-title">
-          <span>📚 学习台账</span>
+          <span>学习台账</span>
           <button class="btn btn-sm btn-primary" onclick="Study.showAddSession()">+ 记录</button>
         </div>
         <div id="study-sessions">
@@ -284,9 +284,9 @@ const Study = {
       </div>
       <div class="card mt-16">
         <div class="tabs">
-          <button class="tab active" onclick="Study.switchStudyTab('books',this)">📖 书籍</button>
-          <button class="tab" onclick="Study.switchStudyTab('skills',this)">🎯 技能</button>
-          <button class="tab" onclick="Study.switchStudyTab('timer',this)">⏱️ 专注计时</button>
+          <button class="tab active" onclick="Study.switchStudyTab('books',this)">书籍</button>
+          <button class="tab" onclick="Study.switchStudyTab('skills',this)">技能</button>
+          <button class="tab" onclick="Study.switchStudyTab('timer',this)">专注计时</button>
         </div>
         <div id="study-sub-content">${this.renderBooks()}</div>
       </div>
@@ -321,7 +321,7 @@ const Study = {
     const container = document.getElementById('page-container');
     container.innerHTML = `
       <div class="card page-enter">
-        <div class="card-title"><span>📚 添加学习记录</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
+        <div class="card-title"><span>添加学习记录</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
         <div class="form-group">
           <label class="form-label">科目</label>
           <input class="input" id="session-subject" placeholder="如：数学、英语、编程…">
@@ -338,7 +338,7 @@ const Study = {
           <label class="form-label">日期</label>
           <input class="input" id="session-date" type="date" value="${Utils.today()}">
         </div>
-        <button class="btn btn-primary" onclick="Study.saveSession()">💾 保存</button>
+        <button class="btn btn-primary" onclick="Study.saveSession()">保存</button>
       </div>
     `;
   },
@@ -357,7 +357,7 @@ const Study = {
     const container = document.getElementById('page-container');
     container.innerHTML = `
       <div class="card page-enter">
-        <div class="card-title"><span>📋 添加任务</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
+        <div class="card-title"><span>添加任务</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
         <div class="form-group">
           <label class="form-label">任务名称</label>
           <input class="input" id="task-title" placeholder="学习任务…">
@@ -370,7 +370,7 @@ const Study = {
           <label class="form-label">日期</label>
           <input class="input" id="task-date" type="date" value="${Utils.today()}">
         </div>
-        <button class="btn btn-primary" onclick="Study.saveTask()">💾 保存</button>
+        <button class="btn btn-primary" onclick="Study.saveTask()">保存</button>
       </div>
     `;
   },
@@ -402,7 +402,7 @@ const Study = {
       <div class="list-item">
         <div class="list-item-main">
           <div class="list-item-title">${b.title || '未命名'}</div>
-          <div class="list-item-sub">${b.author || ''} ${b.status === 'done' ? '✅ 已读完' : `· ${b.progress || 0}%`}</div>
+          <div class="list-item-sub">${b.author || ''} ${b.status === 'done' ? '已读完' : `· ${b.progress || 0}%`}</div>
           <div class="progress-bar mt-8"><div class="progress-fill" style="width:${b.progress || 0}%"></div></div>
           ${b.notes ? `<div class="text-sm text-muted mt-8">${b.notes}</div>` : ''}
         </div>
@@ -416,12 +416,12 @@ const Study = {
     const container = document.getElementById('page-container');
     container.innerHTML = `
       <div class="card page-enter">
-        <div class="card-title"><span>📖 添加书籍</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
+        <div class="card-title"><span>添加书籍</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
         <div class="form-group"><label class="form-label">书名</label><input class="input" id="book-title"></div>
         <div class="form-group"><label class="form-label">作者</label><input class="input" id="book-author"></div>
         <div class="form-group"><label class="form-label">阅读进度 (%)</label><input class="input" id="book-progress" type="number" min="0" max="100" value="0"></div>
         <div class="form-group"><label class="form-label">笔记/摘抄</label><textarea class="textarea" id="book-notes" rows="4"></textarea></div>
-        <button class="btn btn-primary" onclick="Study.saveBook()">💾 保存</button>
+        <button class="btn btn-primary" onclick="Study.saveBook()">保存</button>
       </div>
     `;
   },
@@ -460,11 +460,11 @@ const Study = {
     const container = document.getElementById('page-container');
     container.innerHTML = `
       <div class="card page-enter">
-        <div class="card-title"><span>🎯 添加技能</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
+        <div class="card-title"><span>添加技能</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
         <div class="form-group"><label class="form-label">技能名称</label><input class="input" id="skill-name" placeholder="如：Python、吉他…"></div>
         <div class="form-group"><label class="form-label">掌握程度 (%)</label><input class="input" id="skill-progress" type="number" min="0" max="100" value="0"></div>
         <div class="form-group"><label class="form-label">学习感悟</label><textarea class="textarea" id="skill-notes" rows="4"></textarea></div>
-        <button class="btn btn-primary" onclick="Study.saveSkill()">💾 保存</button>
+        <button class="btn btn-primary" onclick="Study.saveSkill()">保存</button>
       </div>
     `;
   },
@@ -483,11 +483,11 @@ const Study = {
     const container = document.getElementById('page-container');
     container.innerHTML = `
       <div class="card page-enter">
-        <div class="card-title"><span>🎯 编辑技能</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
+        <div class="card-title"><span>编辑技能</span><button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button></div>
         <div class="form-group"><label class="form-label">技能名称</label><input class="input" id="skill-name" value="${skill.name}"></div>
         <div class="form-group"><label class="form-label">掌握程度 (%)</label><input class="input" id="skill-progress" type="number" min="0" max="100" value="${skill.progress}"></div>
         <div class="form-group"><label class="form-label">学习感悟</label><textarea class="textarea" id="skill-notes" rows="4">${skill.notes || ''}</textarea></div>
-        <button class="btn btn-primary" onclick="Study.saveEditSkill('${id}')">💾 保存</button>
+        <button class="btn btn-primary" onclick="Study.saveEditSkill('${id}')">保存</button>
       </div>
     `;
   },
@@ -505,14 +505,14 @@ const Study = {
       <div class="text-center">
         <div class="timer-display" id="timer-display">00:00</div>
         <div class="timer-controls">
-          <button class="btn btn-primary" id="timer-start-btn" onclick="Study.startTimer('countup', 0)">▶ 开始</button>
-          <button class="btn btn-danger" id="timer-stop-btn" onclick="Study.stopTimer(true)">⏹ 停止并记录</button>
-          <button class="btn btn-secondary" onclick="Study.resetTimer()">↺ 重置</button>
+          <button class="btn btn-primary" id="timer-start-btn" onclick="Study.startTimer('countup', 0)">开始</button>
+          <button class="btn btn-danger" id="timer-stop-btn" onclick="Study.stopTimer(true)">停止并记录</button>
+          <button class="btn btn-secondary" onclick="Study.resetTimer()">重置</button>
         </div>
         <div class="flex gap-8 justify-center mt-16">
-          <button class="btn btn-sm btn-secondary" onclick="Study.startTimer('countdown', 25)">🍅 25分钟</button>
-          <button class="btn btn-sm btn-secondary" onclick="Study.startTimer('countdown', 45)">📚 45分钟</button>
-          <button class="btn btn-sm btn-secondary" onclick="Study.startTimer('countdown', 60)">⏰ 60分钟</button>
+          <button class="btn btn-sm btn-secondary" onclick="Study.startTimer('countdown', 25)">25分钟</button>
+          <button class="btn btn-sm btn-secondary" onclick="Study.startTimer('countdown', 45)">45分钟</button>
+          <button class="btn btn-sm btn-secondary" onclick="Study.startTimer('countdown', 60)">60分钟</button>
         </div>
       </div>
     `;

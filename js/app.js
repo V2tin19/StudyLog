@@ -10,10 +10,7 @@ const App = {
     dashboard: { title: '仪表盘', render: (c) => Dashboard.render(c) },
     diary: { title: '日记', render: (c) => Diary.renderDiaryPage(c) },
     study: { title: '学习', render: (c) => Study.renderStudyPage(c) },
-    finance: { title: '记账', render: (c) => Finance.renderFinancePage(c) },
-    habits: { title: '习惯', render: (c) => Habits.renderHabitsPage(c) },
-    weight: { title: '体重', render: (c) => Extras.renderWeightPage(c) },
-    schedule: { title: '作息', render: (c) => Extras.renderSchedulePage(c) },
+    schedule: { title: '日程', render: (c) => Extras.renderSchedulePage(c) },
     goals: { title: '目标', render: (c) => Extras.renderGoalsPage(c) },
     settings: { title: '设置', render: (c) => Settings.render(c) }
   },
@@ -21,8 +18,6 @@ const App = {
   init() {
     /* 初始化各模块 */
     Diary.init();
-    Finance.init();
-    Habits.init();
     Settings.init();
 
     /* 更新日期显示 */

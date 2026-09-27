@@ -69,53 +69,53 @@ const Settings = {
     const config = this.getConfig();
     const storageSize = this.getStorageSize();
     const diaryCount = Diary.getActiveDates().length;
-    const billCount = Finance.getBills().length;
-    const habitCount = Habits.getHabits().length;
     const studyCount = Study.getSessions().length;
+    const goalCount = Extras.getGoals().filter(g => !g.done).length;
+    const noteCount = Diary.getNotes().length;
 
     container.innerHTML = `
       <div class="card-grid card-grid-2 mb-16">
         <div class="card">
-          <div class="card-title"><span>🎨 主题设置</span></div>
+          <div class="card-title"><span>主题设置</span></div>
           <div class="form-group">
             <label class="form-label">外观主题</label>
             <div class="flex gap-8">
-              <button class="btn ${config.theme === 'light' ? 'btn-primary' : 'btn-secondary'}" onclick="Settings.setTheme('light')">☀️ 浅色</button>
-              <button class="btn ${config.theme === 'dark' ? 'btn-primary' : 'btn-secondary'}" onclick="Settings.setTheme('dark')">🌙 深色</button>
+              <button class="btn ${config.theme === 'light' ? 'btn-primary' : 'btn-secondary'}" onclick="Settings.setTheme('light')">浅色</button>
+              <button class="btn ${config.theme === 'dark' ? 'btn-primary' : 'btn-secondary'}" onclick="Settings.setTheme('dark')">深色</button>
             </div>
           </div>
         </div>
         <div class="card">
-          <div class="card-title"><span>💾 数据管理</span></div>
+          <div class="card-title"><span>数据管理</span></div>
           <div class="flex gap-8" style="flex-wrap:wrap;">
-            <button class="btn btn-primary" onclick="Settings.exportData()">📥 导出备份</button>
+            <button class="btn btn-primary" onclick="Settings.exportData()">导出备份</button>
             <label class="btn btn-secondary" style="cursor:pointer;">
-              📤 导入备份
+              导入备份
               <input type="file" accept=".json" style="display:none;" onchange="Settings.handleImport(this)">
             </label>
-            <button class="btn btn-danger" onclick="Settings.clearAllData()">🗑️ 清除所有数据</button>
+            <button class="btn btn-danger" onclick="Settings.clearAllData()">清除所有数据</button>
           </div>
         </div>
       </div>
       <div class="card mb-16">
-        <div class="card-title"><span>📊 数据统计</span></div>
+        <div class="card-title"><span>数据统计</span></div>
         <div class="card-grid card-grid-4">
-          <div class="stat-card"><div class="stat-value">${diaryCount}</div><div class="stat-label">📝 日记</div></div>
-          <div class="stat-card"><div class="stat-value">${studyCount}</div><div class="stat-label">📚 学习记录</div></div>
-          <div class="stat-card"><div class="stat-value">${billCount}</div><div class="stat-label">💰 账单</div></div>
-          <div class="stat-card"><div class="stat-value">${habitCount}</div><div class="stat-label">✅ 习惯</div></div>
+          <div class="stat-card"><div class="stat-value">${diaryCount}</div><div class="stat-label">日记</div></div>
+          <div class="stat-card"><div class="stat-value">${studyCount}</div><div class="stat-label">学习记录</div></div>
+          <div class="stat-card"><div class="stat-value">${goalCount}</div><div class="stat-label">进行中目标</div></div>
+          <div class="stat-card"><div class="stat-value">${noteCount}</div><div class="stat-label">便签</div></div>
         </div>
         <div class="text-sm text-muted mt-8">本地存储占用：${storageSize}</div>
       </div>
       <div class="card">
-        <div class="card-title"><span>ℹ️ 关于本站</span></div>
+        <div class="card-title"><span>关于本站</span></div>
         <div class="text-sm" style="line-height:1.8;">
           <p><strong>日常打卡</strong> · 个人管理工作台 v1.0</p>
-          <p>一款轻量化个人日常综合打卡 Web 网站</p>
-          <p>专注服务个人自律管理、生活留存、数据复盘</p>
-          <p class="mt-8">📌 数据完全存储在您的本地浏览器中，不上传任何服务器</p>
-          <p>📌 无需联网、无需注册、无需手机号</p>
-          <p>📌 纯前端静态页面，可离线使用</p>
+          <p>一款轻量化个人日常记录 Web 网站</p>
+          <p>专注服务个人记录、生活留存、数据复盘</p>
+          <p class="mt-8">数据完全存储在您的本地浏览器中，不上传任何服务器</p>
+          <p>无需联网、无需注册、无需手机号</p>
+          <p>纯前端静态页面，可离线使用</p>
         </div>
       </div>
     `;

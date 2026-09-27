@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f0eb">
   <title>日常打卡 · 个人管理工作台</title>
   <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📋</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect x=%2215%22 y=%2210%22 width=%2270%22 height=%2280%22 rx=%2212%22 fill=%22%23f5f0eb%22 stroke=%22%237ba4c7%22 stroke-width=%228%22/><line x1=%2235%22 y1=%2238%22 x2=%2265%22 y2=%2238%22 stroke=%22%237ba4c7%22 stroke-width=%228%22 stroke-linecap=%22round%22/><line x1=%2235%22 y1=%2256%22 x2=%2265%22 y2=%2256%22 stroke=%22%237ba4c7%22 stroke-width=%228%22 stroke-linecap=%22round%22/><line x1=%2235%22 y1=%2274%22 x2=%2255%22 y2=%2274%22 stroke=%22%237ba4c7%22 stroke-width=%228%22 stroke-linecap=%22round%22/></svg>">
 </head>
 <body>
   <!-- 顶部状态栏 -->
@@ -28,19 +28,15 @@
   <!-- 侧边导航（桌面端） -->
   <nav id="sidebar">
     <div class="sidebar-header">
-      <span class="sidebar-logo">📋</span>
       <span class="sidebar-brand">日常打卡</span>
     </div>
     <ul class="nav-list">
-      <li><a href="#/dashboard" class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span><span class="nav-label">仪表盘</span></a></li>
-      <li><a href="#/diary" class="nav-item" data-page="diary"><span class="nav-icon">📝</span><span class="nav-label">日记</span></a></li>
-      <li><a href="#/study" class="nav-item" data-page="study"><span class="nav-icon">📚</span><span class="nav-label">学习</span></a></li>
-      <li><a href="#/finance" class="nav-item" data-page="finance"><span class="nav-icon">💰</span><span class="nav-label">记账</span></a></li>
-      <li><a href="#/habits" class="nav-item" data-page="habits"><span class="nav-icon">✅</span><span class="nav-label">习惯</span></a></li>
-      <li><a href="#/weight" class="nav-item" data-page="weight"><span class="nav-icon">⚖️</span><span class="nav-label">体重</span></a></li>
-      <li><a href="#/schedule" class="nav-item" data-page="schedule"><span class="nav-icon">📋</span><span class="nav-label">作息</span></a></li>
-      <li><a href="#/goals" class="nav-item" data-page="goals"><span class="nav-icon">🎯</span><span class="nav-label">目标</span></a></li>
-      <li><a href="#/settings" class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span><span class="nav-label">设置</span></a></li>
+      <li><a href="#/dashboard" class="nav-item active" data-page="dashboard"><span class="nav-label">仪表盘</span></a></li>
+      <li><a href="#/diary" class="nav-item" data-page="diary"><span class="nav-label">日记</span></a></li>
+      <li><a href="#/study" class="nav-item" data-page="study"><span class="nav-label">学习</span></a></li>
+      <li><a href="#/schedule" class="nav-item" data-page="schedule"><span class="nav-label">日程</span></a></li>
+      <li><a href="#/goals" class="nav-item" data-page="goals"><span class="nav-label">目标</span></a></li>
+      <li><a href="#/settings" class="nav-item" data-page="settings"><span class="nav-label">设置</span></a></li>
     </ul>
     <div class="sidebar-footer">
       <span class="version">v1.0 · 纯本地</span>
@@ -58,24 +54,13 @@
   <!-- 底部导航（移动端） -->
   <nav id="bottom-nav">
     <a href="#/dashboard" class="bottom-nav-item active" data-page="dashboard">
-      <span class="bottom-nav-icon">📊</span>
       <span class="bottom-nav-label">首页</span>
     </a>
     <a href="#/diary" class="bottom-nav-item" data-page="diary">
-      <span class="bottom-nav-icon">📝</span>
       <span class="bottom-nav-label">日记</span>
     </a>
     <a href="#/study" class="bottom-nav-item" data-page="study">
-      <span class="bottom-nav-icon">📚</span>
       <span class="bottom-nav-label">学习</span>
-    </a>
-    <a href="#/finance" class="bottom-nav-item" data-page="finance">
-      <span class="bottom-nav-icon">💰</span>
-      <span class="bottom-nav-label">记账</span>
-    </a>
-    <a href="#/habits" class="bottom-nav-item" data-page="habits">
-      <span class="bottom-nav-icon">✅</span>
-      <span class="bottom-nav-label">习惯</span>
     </a>
   </nav>
 
@@ -94,8 +79,6 @@
   <script src="js/modules/utils.js"></script>
   <script src="js/modules/diary.js"></script>
   <script src="js/modules/study.js"></script>
-  <script src="js/modules/finance.js"></script>
-  <script src="js/modules/habits.js"></script>
   <script src="js/modules/dashboard.js"></script>
   <script src="js/modules/settings.js"></script>
   <script src="js/modules/extras.js"></script>
