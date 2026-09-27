@@ -20,13 +20,26 @@
     }
     .pub-brand { font-size: 1rem; font-weight: 600; letter-spacing: 0.02em; }
     .pub-brand span { color: var(--accent-blue); }
-    .pub-main { max-width: 720px; margin: 0 auto; padding: 28px 20px 56px; }
+    .pub-main { max-width: 720px; margin: 0 auto; padding: 28px 20px 64px; }
 
-    .pub-intro { margin-bottom: 24px; }
+    .pub-intro { margin-bottom: 22px; }
     .pub-intro h1 { font-size: 1.35rem; font-weight: 600; line-height: 1.5; }
-    .pub-intro p { font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; }
+    .pub-readonly { font-size: 0.78rem; color: var(--text-muted); margin-top: 7px; letter-spacing: 0.06em; }
 
-    .pub-hero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 32px; }
+    /* 分段导航 */
+    .pub-tabs { display: flex; gap: 6px; margin-bottom: 26px; overflow-x: auto; scrollbar-width: none; }
+    .pub-tabs::-webkit-scrollbar { display: none; }
+    .pub-tab {
+      flex: 0 0 auto; padding: 7px 18px; border-radius: 999px;
+      font-size: 0.84rem; color: var(--text-secondary);
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      transition: all var(--transition);
+    }
+    .pub-tab:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
+    .pub-tab.active { color: #fff; background: var(--accent-blue); border-color: var(--accent-blue); }
+
+    .pub-hero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 30px; }
+    .pub-hero:empty { display: none; }
     .pub-stat {
       background: var(--bg-card); border: 1px solid var(--border-light);
       border-radius: var(--radius-lg); padding: 16px 8px; text-align: center;
@@ -34,6 +47,7 @@
     .pub-stat-value { font-size: 1.45rem; font-weight: 600; color: var(--accent-blue); line-height: 1.3; }
     .pub-stat-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 
+    /* 日记时间线 */
     .pub-timeline { position: relative; padding-left: 26px; }
     .pub-timeline::before {
       content: ''; position: absolute; left: 6px; top: 10px; bottom: 10px;
@@ -68,6 +82,46 @@
     .pub-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 14px; }
     .pub-images img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border-light); }
 
+    /* 通用小节与列表（学习 / 日程 / 目标共用） */
+    .pub-section { margin-bottom: 28px; }
+    .pub-section:last-child { margin-bottom: 0; }
+    .pub-section-title { font-size: 0.76rem; color: var(--text-muted); letter-spacing: 0.08em; margin-bottom: 11px; }
+
+    .pub-list { display: flex; flex-direction: column; gap: 8px; }
+    .pub-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-md); padding: 12px 15px;
+    }
+    .pub-row-main { flex: 1; min-width: 0; }
+    .pub-row-title { font-size: 0.9rem; font-weight: 500; word-break: break-word; }
+    .pub-row-sub { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; word-break: break-word; }
+    .pub-row-value { font-size: 0.82rem; color: var(--accent-blue); white-space: nowrap; }
+
+    .pub-progress { height: 5px; background: var(--bg-tertiary); border-radius: 999px; overflow: hidden; margin-top: 9px; }
+    .pub-progress-bar { height: 100%; background: var(--accent-blue); border-radius: 999px; transition: width var(--transition); }
+    .pub-progress-bar.done { background: var(--accent-green); }
+
+    /* 日程 */
+    .pub-day { margin-bottom: 16px; }
+    .pub-day-name { font-size: 0.84rem; font-weight: 600; margin-bottom: 7px; }
+    .pub-day-name.today { color: var(--accent-blue); }
+    .pub-slot-row { display: flex; gap: 12px; padding: 6px 0 6px 2px; font-size: 0.88rem; }
+    .pub-slot-time { color: var(--text-muted); font-size: 0.78rem; min-width: 44px; font-variant-numeric: tabular-nums; }
+
+    /* 目标 */
+    .pub-goals { display: flex; flex-direction: column; gap: 9px; }
+    .pub-goal {
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-md); padding: 13px 16px;
+    }
+    .pub-goal.done { opacity: 0.6; }
+    .pub-goal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .pub-goal-name { font-size: 0.9rem; font-weight: 500; word-break: break-word; }
+    .pub-goal.done .pub-goal-name { text-decoration: line-through; }
+    .pub-goal-pct { font-size: 0.78rem; color: var(--accent-blue); white-space: nowrap; }
+    .pub-goal-note { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; word-break: break-word; }
+
     .pub-state { text-align: center; padding: 48px 16px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.9; }
     .pub-state strong { display: block; color: var(--text-secondary); font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
 
@@ -80,14 +134,12 @@
     .pub-more:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
     .pub-more:disabled { opacity: 0.5; cursor: default; }
 
-    .pub-footer { max-width: 720px; margin: 0 auto; padding: 0 20px 56px; text-align: center; font-size: 0.76rem; color: var(--text-muted); line-height: 1.9; }
-    .pub-footer a { color: var(--accent-blue); }
-
     @media (max-width: 460px) {
       .pub-stat { padding: 13px 4px; }
       .pub-stat-value { font-size: 1.2rem; }
-      .pub-main { padding: 20px 16px 48px; }
+      .pub-main { padding: 20px 16px 56px; }
       .pub-card { padding: 15px 16px; }
+      .pub-row { padding: 11px 13px; }
     }
   </style>
 </head>
@@ -102,21 +154,37 @@
   <main class="pub-main">
     <section class="pub-intro">
       <h1 id="pub-title">我的学习记录</h1>
-      <p>每天写下一点，留给以后的自己看。</p>
+      <div class="pub-readonly">-只读-</div>
     </section>
 
-    <section class="pub-hero" id="pub-hero"></section>
+    <nav class="pub-tabs" id="pub-tabs">
+      <button class="pub-tab active" data-tab="diary">日记</button>
+      <button class="pub-tab" data-tab="study">学习</button>
+      <button class="pub-tab" data-tab="schedule">日程</button>
+      <button class="pub-tab" data-tab="goals">目标</button>
+    </nav>
 
-    <div id="pub-timeline" class="pub-timeline"></div>
+    <section class="pub-panel" id="pub-panel-diary">
+      <div class="pub-hero" id="pub-hero"></div>
+      <div id="pub-timeline" class="pub-timeline"></div>
+      <div class="pub-more-wrap hidden" id="pub-more-wrap">
+        <button class="pub-more" id="pub-more">加载更早的记录</button>
+      </div>
+    </section>
 
-    <div class="pub-more-wrap hidden" id="pub-more-wrap">
-      <button class="pub-more" id="pub-more">加载更早的记录</button>
-    </div>
+    <section class="pub-panel hidden" id="pub-panel-study">
+      <div class="pub-hero" id="study-hero"></div>
+      <div id="study-body"></div>
+    </section>
+
+    <section class="pub-panel hidden" id="pub-panel-schedule">
+      <div id="schedule-body"></div>
+    </section>
+
+    <section class="pub-panel hidden" id="pub-panel-goals">
+      <div id="goals-body"></div>
+    </section>
   </main>
-
-  <footer class="pub-footer">
-    <div>这里只读展示，由我本人更新 · 评论功能还在做</div>
-  </footer>
 
   <script src="js/public-site.js"></script>
 </body>

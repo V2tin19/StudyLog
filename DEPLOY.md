@@ -55,7 +55,7 @@
 5. 打开项目里的 `schema.sql`。这个文件**一行就是一条完整语句、不含任何注释**（这是故意的，见下面说明）
 6. 先尝试**整段复制粘贴**到输入框，点 **「执行 / Execute」**
 
-成功的标志：最后会返回一张表名列表，里面有 `diary` 和 `site_meta`。
+成功的标志：最后会返回一张表名列表，里面有 `diary`、`site_meta` 和 `doc`。
 
 > 这一步可以重复执行，不会报错也不会删掉已有日记。
 
@@ -78,6 +78,10 @@ CREATE TABLE IF NOT EXISTS site_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL 
 ```
 
 ```sql
+CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '');
+```
+
+```sql
 INSERT OR IGNORE INTO site_meta (key, value) VALUES ('site_title', '我的学习记录');
 ```
 
@@ -95,7 +99,19 @@ INSERT OR IGNORE INTO site_meta (key, value) VALUES ('announcement', '');
 SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;
 ```
 
-应该返回两行：`diary`、`site_meta`（外加 SQLite 自己的内部表，属正常）。
+应该返回三行：`diary`、`doc`、`site_meta`（外加 SQLite 自己的内部表，属正常）。
+
+### 已经建过库了，怎么补上后来的新表
+
+`doc` 表是后加的（用来存学习 / 日程 / 目标）。**库已经建好、日记也写了，不用重来**，只要单独补这一条：
+
+```sql
+CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '');
+```
+
+粘进 D1 控制台执行就行，`IF NOT EXISTS` 保证不会动到已有数据。
+
+> 没补这条会怎样：日记照常同步，但公开页的「学习 / 日程 / 目标」三个板块读不到数据，写作台右上角会显示**「部分同步」**（橙色），鼠标停上去会写明原因。不会静默失败。
 
 ---
 

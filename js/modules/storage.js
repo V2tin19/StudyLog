@@ -16,13 +16,26 @@ const Store = {
   },
 
   set(key, val) {
-    try { localStorage.setItem(this._key(key), JSON.stringify(val)); return true; }
-    catch { return false; }
+    try {
+      localStorage.setItem(this._key(key), JSON.stringify(val));
+      this._changed(key);
+      return true;
+    } catch { return false; }
   },
 
   remove(key) {
-    try { localStorage.removeItem(this._key(key)); return true; }
-    catch { return false; }
+    try {
+      localStorage.removeItem(this._key(key));
+      this._changed(key);
+      return true;
+    } catch { return false; }
+  },
+
+  /* 数据变了就喊一声，由 Sync 决定要不要传云端。
+     这样所有写入路径（setDate / addItem / updateItem / removeItem）都自动带上同步，
+     不用去每个业务模块里手挂钩子。同步模块不存在时（例如公开页）静默跳过。 */
+  _changed(key) {
+    if (typeof Sync !== 'undefined' && Sync.onStoreChange) Sync.onStoreChange(key);
   },
 
   /* ---- 集合操作（用于日记、记账等列表数据） ---- */

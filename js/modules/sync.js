@@ -19,16 +19,36 @@
 const Sync = {
   ENABLED_KEY: 'studylog_autosync',
   API: '/api/admin/diary',
+  DOC_API: '/api/admin/doc',
+  DOC_TIME_KEY: 'studylog_doc_time',   /* 记录每类展示数据「本机最后改于何时」 */
   CHUNK: 50,          /* 一批最多推几条，跟服务端 MAX_BATCH 对齐 */
   DEBOUNCE: 600,      /* 连续改动合并到一个请求里 */
 
+  /* 本地存储 key → 云端 doc key。
+     学习 / 日程 / 目标是「整块读写」的展示数据，每类打包成一坨 JSON 存一行，
+     所以不用像日记那样按天拆。 */
+  DOC_MAP: {
+    study_sessions: 'study',
+    study_tasks: 'study',
+    study_books: 'study',
+    study_skills: 'study',
+    study_checkin: 'study',
+    weekly_schedule: 'schedule',
+    goal_list: 'goals'
+  },
+  DOC_KEYS: ['study', 'schedule', 'goals'],
+
   _enabled: null,
-  _state: 'idle',     /* idle | syncing | ok | error | off */
+  _state: 'idle',     /* idle | syncing | ok | partial | error | off */
   _message: '',
   _lastSyncAt: 0,
   _queue: new Map(),  /* date -> 'save' | 'delete' */
   _timer: null,
   _flushing: false,
+  _docQueue: new Set(),
+  _docTimer: null,
+  /* 同步自己往 Store 里写数据时置位，避免「拉下来的数据又被当成改动传回去」的死循环 */
+  _internal: false,
 
   /* ---------------- 开关 ---------------- */
 
@@ -47,7 +67,9 @@ const Sync = {
     try { localStorage.setItem(this.ENABLED_KEY, on ? '1' : '0'); } catch (e) { /* 忽略 */ }
     if (!on) {
       this._queue.clear();
+      this._docQueue.clear();
       clearTimeout(this._timer);
+      clearTimeout(this._docTimer);
       this._setState('off', '自动同步已关闭，改动只留在本机');
     } else {
       this.boot();
@@ -70,7 +92,7 @@ const Sync = {
   _setState(state, message) {
     this._state = state;
     this._message = message || '';
-    if (state === 'ok') this._lastSyncAt = Date.now();
+    if (state === 'ok' || state === 'partial') this._lastSyncAt = Date.now();
     document.dispatchEvent(new CustomEvent('sync:change', { detail: this.info() }));
   },
 
@@ -147,7 +169,8 @@ const Sync = {
       }
     });
 
-    Store.set(Diary.STORAGE_KEY, all);
+    this._internal = true;
+    try { Store.set(Diary.STORAGE_KEY, all); } finally { this._internal = false; }
 
     /* 2) 本地有内容、云端没有 —— 是本地新写的（或者是离线期间写的），补传上去 */
     const localOnly = Object.keys(all).filter(d => {
@@ -166,12 +189,38 @@ const Sync = {
       }
     }
 
-    const parts = [`云端 ${remote.length} 篇`];
+    /* 3) 学习 / 日程 / 目标。
+       单独 try —— 它们失败了不该把日记的同步结果一起判死
+       （最常见的是 doc 表还没建，那时候日记其实一切正常）。 */
+    let docPulled = 0;
+    let docPushed = 0;
+    let docError = '';
+    try {
+      const d = await this._pullDocs();
+      docPulled = d.pulled;
+      docPushed = d.pushed;
+    } catch (err) {
+      docError = err.message;
+    }
+
+    const parts = [`日记 ${remote.length} 篇`];
     if (added || updated) parts.push(`拉回 ${added} 新增 / ${updated} 更新`);
     if (pushed) parts.push(`上传 ${pushed} 篇`);
-    this._setState('ok', '同步完成：' + parts.join('，'));
+    if (docPulled || docPushed) parts.push(`其他数据 拉回 ${docPulled} / 上传 ${docPushed}`);
 
-    return { remote: remote.length, added, updated, pushed, changed: !!(added || updated) };
+    let msg = '同步完成：' + parts.join('，');
+    if (docError) {
+      msg += '。学习/日程/目标没同步上：' + docError;
+      this._setState('partial', msg);
+    } else {
+      this._setState('ok', msg);
+    }
+
+    return {
+      remote: remote.length, added, updated, pushed,
+      docPulled, docPushed, docError,
+      changed: !!(added || updated || docPulled)
+    };
   },
 
   /* 云端记录 → 本地条目。local 传入时，保住本地那些云端存不了的 base64 图片 */
@@ -197,6 +246,147 @@ const Sync = {
       createdAt: r.createdAt || r.date,
       updatedAt: r.updatedAt || ''
     };
+  },
+
+  /* ---------------- 学习 / 日程 / 目标（doc 类数据） ----------------
+     和日记不同：这几类是整体读写的展示数据，云端一类存一行 JSON。
+     谁新用「本机最后改于」和云端 updated_at 比，本地新就传上去，云端新就拉下来。
+     ------------------------------------------------------------------ */
+
+  /* Store 每次写入都会喊一声，这里判断该不该管 */
+  onStoreChange(key) {
+    if (this._internal) return;
+    const docKey = this.DOC_MAP[key];
+    if (!docKey) return;              /* 日记有自己的路径，其余 key 不参与同步 */
+    if (!this.canSync()) return;
+    this._enqueueDoc(docKey);
+  },
+
+  async _pullDocs() {
+    if (!Cloud.getToken()) return { pulled: 0, pushed: 0 };
+
+    const res = await fetch(this.DOC_API, {
+      headers: { authorization: 'Bearer ' + Cloud.getToken() }
+    });
+    const data = await Cloud._readJson(res, '读取云端');
+    const docs = data.docs || {};
+
+    const times = Store.get(this.DOC_TIME_KEY, {}) || {};
+    const toPush = [];
+    let pulled = 0;
+
+    this.DOC_KEYS.forEach(k => {
+      const remote = docs[k];
+      const localT = times[k] || 0;
+      const remoteT = remote ? (Date.parse(remote.updatedAt || '') || 0) : 0;
+
+      if (remote && remoteT > localT) {
+        /* 云端更新（多半是在另一台设备上改的）→ 拉下来覆盖本机 */
+        this._applyDoc(k, remote.data);
+        this._setDocTime(k, remoteT);
+        pulled++;
+      } else if (localT > remoteT) {
+        /* 本机改过、还没传上去（例如上次断网）→ 补传 */
+        toPush.push(k);
+      } else if (!remote && this._hasLocalDoc(k)) {
+        /* 云端还没有这一类，而本机有内容 → 首次上传 */
+        toPush.push(k);
+      }
+    });
+
+    let pushed = 0;
+    for (const k of toPush) {
+      await this._pushDoc(k);
+      pushed++;
+    }
+    return { pulled, pushed };
+  },
+
+  /* 把本机这几类数据打包，准备上传 */
+  _collectDoc(key) {
+    if (key === 'study') {
+      return {
+        sessions: Store.get(Study.SESSIONS_KEY, []),
+        tasks: Store.get(Study.TASKS_KEY, []),
+        books: Store.get(Study.BOOKS_KEY, []),
+        skills: Store.get(Study.SKILLS_KEY, []),
+        checkin: Store.get(Study.CHECKIN_KEY, {})
+      };
+    }
+    if (key === 'schedule') return Store.get(Extras.SCHEDULE_KEY, {});
+    if (key === 'goals') return Store.get(Extras.GOALS_KEY, []);
+    return null;
+  },
+
+  _hasLocalDoc(key) {
+    const d = this._collectDoc(key);
+    if (d === null || d === undefined) return false;
+    if (Array.isArray(d)) return d.length > 0;
+    return Object.keys(d).length > 0;
+  },
+
+  /* 用云端数据覆盖本机（过程中屏蔽 Store 的变更通知，否则会回环上传） */
+  _applyDoc(key, data) {
+    if (!data) return;
+    this._internal = true;
+    try {
+      if (key === 'study') {
+        [['sessions', 'SESSIONS_KEY'], ['tasks', 'TASKS_KEY'], ['books', 'BOOKS_KEY'],
+         ['skills', 'SKILLS_KEY'], ['checkin', 'CHECKIN_KEY']].forEach(pair => {
+          if (data[pair[0]] !== undefined) Store.set(Study[pair[1]], data[pair[0]]);
+        });
+      } else if (key === 'schedule') {
+        Store.set(Extras.SCHEDULE_KEY, data);
+      } else if (key === 'goals') {
+        Store.set(Extras.GOALS_KEY, data);
+      }
+    } finally {
+      this._internal = false;
+    }
+  },
+
+  _setDocTime(key, t) {
+    const times = Store.get(this.DOC_TIME_KEY, {}) || {};
+    times[key] = t;
+    this._internal = true;
+    try { Store.set(this.DOC_TIME_KEY, times); } finally { this._internal = false; }
+  },
+
+  async _pushDoc(key) {
+    const data = this._collectDoc(key);
+    if (data === null) return;
+
+    const res = await fetch(this.DOC_API, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer ' + Cloud.getToken()
+      },
+      body: JSON.stringify({ key: key, data: data })
+    });
+    const r = await Cloud._readJson(res, '上传');
+    this._setDocTime(key, Date.parse(r.updatedAt || '') || Date.now());
+  },
+
+  _enqueueDoc(key) {
+    this._docQueue.add(key);
+    clearTimeout(this._docTimer);
+    this._docTimer = setTimeout(() => this._flushDocs(), this.DEBOUNCE);
+  },
+
+  async _flushDocs() {
+    if (this._docQueue.size === 0) return;
+    const keys = Array.from(this._docQueue);
+    this._docQueue.clear();
+
+    this._setState('syncing', '正在上传其他数据…');
+    try {
+      for (const k of keys) await this._pushDoc(k);
+      this._setState('ok', '已同步 · ' + this._timeLabel());
+    } catch (err) {
+      this._setState('error', '上传失败：' + err.message + '（点这里重试）');
+      keys.forEach(k => this._docQueue.add(k));
+    }
   },
 
   /* ---------------- 本地改动 → 上传 ---------------- */
@@ -259,12 +449,10 @@ const Sync = {
   },
 
   retry() {
-    if (this._queue.size === 0) {
-      /* 没有待办也允许重试：直接重新拉一次 */
-      this.boot();
-      return;
-    }
-    this._flush();
+    if (this._queue.size) { this._flush(); return; }
+    if (this._docQueue.size) { this._flushDocs(); return; }
+    /* 没有待办也允许重试：重新拉一次 */
+    this.boot();
   },
 
   _payload(date) {
@@ -362,6 +550,7 @@ const Sync = {
     const map = {
       syncing: ['同步中…', 'var(--text-muted)'],
       ok: ['已同步 ' + this._timeLabel(), 'var(--accent-green)'],
+      partial: ['部分同步', 'var(--accent-orange)'],
       error: ['同步失败', 'var(--accent-red)'],
       off: ['仅本地', 'var(--text-muted)'],
       idle: ['', '']
@@ -369,13 +558,14 @@ const Sync = {
     const pair = map[this._state] || ['', ''];
     const text = pair[0];
     const color = pair[1];
+    const clickable = this._state === 'error' || this._state === 'partial';
 
     el.textContent = text;
     el.style.color = color;
     el.style.display = text ? 'inline-block' : 'none';
-    el.style.cursor = this._state === 'error' ? 'pointer' : 'default';
+    el.style.cursor = clickable ? 'pointer' : 'default';
     el.title = this._message || '云端同步状态';
-    el.onclick = this._state === 'error' ? () => this.retry() : null;
+    el.onclick = clickable ? () => this.retry() : null;
   }
 };
 

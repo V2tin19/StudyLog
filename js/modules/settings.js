@@ -101,6 +101,9 @@ const Settings = {
             </label>
             <button class="btn btn-danger" onclick="Settings.clearAllData()">清除所有数据</button>
           </div>
+          <div class="text-sm text-muted mt-8">
+            清除只影响本机浏览器。云端那一份不会被删，下次打开会自动拉回来。
+          </div>
         </div>
       </div>
       <div class="card mb-16">
