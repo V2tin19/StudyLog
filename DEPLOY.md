@@ -6,7 +6,7 @@
 
 | 网址 | 谁看 | 打开后看到什么 |
 |------|------|----------------|
-| `https://你的项目.pages.dev/` | **给朋友的** | 只读的日记时间线，页面上不存在任何编辑控件 |
+| `https://你的项目.pages.dev/` | **给朋友的** | 公开的时间线，朋友能看，也能留言、荐书 |
 | `https://你的项目.pages.dev/write` | **只给自己** | 完整写作台；没有令牌的人打开只会看到一把锁 |
 
 > 分享的时候只发**不带 `/write` 的那个地址**。写作台地址自己收藏起来。
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFA
 ```
 
 ```sql
-INSERT OR IGNORE INTO site_meta (key, value) VALUES ('site_title', '我的学习记录');
+INSERT OR IGNORE INTO site_meta (key, value) VALUES ('site_title', '果冻的成长记录');
 ```
 
 ```sql
@@ -266,7 +266,7 @@ crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-','')
 2. **Cloudflare 侧**：Pages 项目 → **设置** → **构建与部署** → 找到 Git 仓库那一栏 → 点 **管理 / 重新连接** → 跳转 GitHub 授权 → 仓库选 `V2tin19/StudyLog`，生产分支选 `main`。
 3. ⚠️ **重连时不要改动构建配置** —— 框架预设仍然是 `None`、构建命令仍然留空、输出目录仍然是 `/`。填错会导致部署失败或文件缺失。
 4. 连好后手动触发一次：**部署**（Deployments）→ 最新一条 → 右侧 `···` → **重试部署**。
-5. 验证：打开 `https://你的项目.pages.dev/`，标题应该变成**「我的学习记录」**（公开页）；`/write` 应该显示**锁屏**。
+5. 验证：打开 `https://你的项目.pages.dev/`，标题应该变成**「果冻的成长记录」**（公开页）；`/write` 应该显示**锁屏**。
 
 > D1 绑定和环境变量是独立配置，重连 Git **不会**丢掉它们，不用重新配。
 
@@ -276,8 +276,8 @@ crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-','')
 
 | 看哪里 | 最新版应该是 | 还是旧版的话 |
 | --- | --- | --- |
-| `/` 的浏览器标签标题 | `我的学习记录` | `StudyLog · 个人日常记录` |
-| `/` 页面上有没有「写日记」按钮 | 没有（公开页只有列表，没有任何编辑入口） | 有 |
+| `/` 的浏览器标签标题 | `果冻的成长记录` | `StudyLog · 个人日常记录` |
+| `/` 页面上有没有「写日记」按钮 | 没有（公开页只有列表，没有任何站主编辑入口） | 有 |
 | `/write` | 显示要输入令牌的锁屏 | 直接进编辑器，不问暗号 |
 
 想更确定一点，在项目目录里跑这一条（把域名换成你自己的）：
@@ -372,7 +372,7 @@ curl -sS -o /dev/null -w "%{content_type} | %{size_download}\n" https://你的�
 | 文件 | 作用 |
 |------|------|
 | `schema.sql` | 数据库建表语句（**一行一条、无注释**，为兼容 D1 控制台的输入框格式） |
-| `index.html` | 公开只读页（站点根路径 `/`，给朋友看） |
+| `index.html` | 公开页（站点根路径 `/`，给朋友看） |
 | `write.html` | 写作台入口（`/write`，含门禁遮罩） |
 | `js/public-site.js` | 公开页的渲染逻辑 |
 | `js/lock.js` | 写作台门禁：没令牌只显示锁屏 |
@@ -391,6 +391,6 @@ curl -sS -o /dev/null -w "%{content_type} | %{size_download}\n" https://你的�
 
 **位置调整**
 
-原来 `index.html` 是写作台、`view.html` 是公开页。现在对调了：`index.html` 变成公开页（占住站点根路径），写作台改名 `write.html`。这样分享链接时朋友拿到的是只读页。
+原来 `index.html` 是写作台、`view.html` 是公开页。现在对调了：`index.html` 变成公开页（占住站点根路径），写作台改名 `write.html`。这样分享链接时朋友拿到的是公开页。
 
 **没动**：`css/style.css`、`js/app.js`、`js/modules/diary.js` 等其他模块 —— 你的写作体验和本地数据完全没受影响。

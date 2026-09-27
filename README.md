@@ -26,7 +26,7 @@ AI写的踩坑记录都在DEPLOY.md，如果你也想构建一个的话记得看
 
 ```
 StudyLog/
-├── index.html              # 公开只读页（站点根路径 /，给朋友看）
+├── index.html              # 公开页（站点根路径 /，给朋友看）
 ├── write.html              # 写作台入口（/write，含门禁遮罩）
 ├── schema.sql              # D1 数据库建表语句
 ├── DEPLOY.md               # 部署到 Cloudflare 的完整手册
