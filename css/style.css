@@ -594,17 +594,17 @@ tr:hover td { background: var(--bg-hover); }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- 时间线 ---- */
-.timeline { position: relative; padding-left: 56px; }
+.timeline { position: relative; padding-left: 16px; }
 .timeline::before {
   content: '';
-  position: absolute; left: 27px; top: 12px; bottom: 12px;
+  position: absolute; left: 23px; top: 10px; bottom: 10px;
   width: 2px; border-radius: 1px;
   background: var(--border-color);
 }
-.timeline-item { position: relative; padding-bottom: 26px; }
+.timeline-item { position: relative; padding: 0 0 26px; }
 .timeline-item:last-child { padding-bottom: 0; }
 .timeline-dot {
-  position: absolute; left: 27px; top: 22px;
+  position: absolute; left: 23px; top: 6px;
   transform: translateX(-50%);
   width: 12px; height: 12px; border-radius: 50%;
   background: var(--bg-card);
@@ -612,12 +612,14 @@ tr:hover td { background: var(--bg-hover); }
   box-shadow: 0 0 0 3px rgba(123,164,199,0.15);
 }
 .timeline-date {
-  position: absolute; left: 42px; top: 16px;
+  position: absolute; left: 42px; top: 2px;
   font-size: 0.75rem; font-weight: 600;
   color: var(--accent-blue); letter-spacing: 0.3px;
+  line-height: 1;
 }
 .timeline-card {
-  margin-top: 32px; padding: 14px 16px;
+  margin-left: 132px;
+  padding: 12px 16px;
   background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -626,12 +628,54 @@ tr:hover td { background: var(--bg-hover); }
   transition: box-shadow var(--transition), border-color var(--transition);
 }
 .timeline-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-color); }
-.timeline-card-date {
-  font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px;
-}
 .timeline-card-text {
   font-size: 0.88rem; line-height: 1.7; color: var(--text-primary);
   white-space: pre-wrap; word-break: break-word;
 }
 .timeline-imgs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .timeline-imgs img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; }
+
+/* ---- 时间线筛选胶囊 ---- */
+.timeline-filter { display: flex; gap: 8px; flex-wrap: wrap; }
+.filter-pill {
+  padding: 6px 18px; border-radius: 20px;
+  font-size: 0.82rem; color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  transition: all var(--transition);
+  cursor: pointer;
+}
+.filter-pill:hover { background: var(--border-color); }
+.filter-pill.active { background: var(--accent-blue); color: #fff; }
+
+/* ---- 筛选面板 ---- */
+.filter-panel {
+  margin-top: 12px; padding: 14px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+}
+.filter-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.filter-panel-title { font-size: 0.9rem; font-weight: 600; }
+.filter-month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.filter-month, .filter-week {
+  padding: 8px 0; border-radius: var(--radius-sm);
+  font-size: 0.82rem; color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.filter-month:hover, .filter-week:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.filter-month.active, .filter-week.active { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+.filter-week-list { display: flex; gap: 8px; flex-wrap: wrap; }
+.filter-week { padding: 8px 16px; }
+
+/* ---- 分页 ---- */
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; margin-top: 20px;
+}
+.pagination-info { font-size: 0.82rem; color: var(--text-secondary); }
+.btn.disabled { opacity: 0.45; pointer-events: none; }
