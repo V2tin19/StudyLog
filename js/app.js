@@ -4,7 +4,7 @@
    ============================================ */
 
 const App = {
-  currentPage: 'dashboard',
+  currentPage: 'timeline',
 
   pages: {
     timeline: { title: '时间线', render: (c) => Timeline.render(c) },
@@ -36,9 +36,9 @@ const App = {
     this.setupMenuToggle();
 
     /* 根据 hash 导航到对应页面 */
-    const hash = location.hash.slice(1) || '/dashboard';
+    const hash = location.hash.slice(1) || '/timeline';
     const page = hash.replace('/', '');
-    this.navigate(this.pages[page] ? page : 'dashboard');
+    this.navigate(this.pages[page] ? page : 'timeline');
 
     /* 每分钟更新日期 */
     setInterval(() => this.updateHeaderDate(), 60000);
@@ -46,7 +46,7 @@ const App = {
 
   setupRouter() {
     window.addEventListener('hashchange', () => {
-      const hash = location.hash.slice(1) || '/dashboard';
+      const hash = location.hash.slice(1) || '/timeline';
       const page = hash.replace('/', '');
       if (this.pages[page]) {
         this.navigate(page);
@@ -94,7 +94,7 @@ const App = {
   },
 
   navigate(page) {
-    if (!this.pages[page]) page = 'dashboard';
+    if (!this.pages[page]) page = 'timeline';
 
     this.currentPage = page;
 
