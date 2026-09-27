@@ -97,10 +97,17 @@
     .pub-row-title { font-size: 0.9rem; font-weight: 500; word-break: break-word; }
     .pub-row-sub { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; word-break: break-word; }
     .pub-row-value { font-size: 0.82rem; color: var(--accent-blue); white-space: nowrap; }
-    /* 纯名单型条目（在读 / 技能）前面点一个小圆点，跟带数值的行区分开 */
+    /* 纯名单型条目（在读 / 在学）前面点一个小圆点，跟带数值的行区分开 */
     .pub-row-dot::before {
       content: ''; flex: 0 0 auto; width: 5px; height: 5px; border-radius: 50%;
       background: var(--accent-blue); opacity: 0.5;
+    }
+    /* 已读 / 已掌握：圆点变绿，标题转灰，右边挂个胶囊 */
+    .pub-row.done::before { background: var(--accent-green); opacity: 0.85; }
+    .pub-row.done .pub-row-title { color: var(--text-muted); }
+    .pub-row-badge {
+      flex: 0 0 auto; font-size: 0.68rem; color: var(--accent-green);
+      border: 1px solid currentColor; border-radius: 999px; padding: 1px 7px;
     }
 
     /* 日记筛选条 */
@@ -144,41 +151,44 @@
       font-variant-numeric: tabular-nums;
     }
     .pub-slot-text { font-size: 0.88rem; padding: 8px 0; word-break: break-word; }
-    /* 时间轴：竖线 + 站点圆点。圆点用 box-shadow 在线上"咬"出一个缺口 */
-    .pub-slot-rail { position: relative; align-self: stretch; display: flex; align-items: center; justify-content: center; }
-    .pub-slot-rail::before {
+
+    /* 时间轴轨道：日程的时段和目标的推进记录共用同一根。
+       浅色 #999 / 深色 #777，再加 3px 的卡底色描边在线上"咬"出一个缺口。 */
+    .pub-rail { position: relative; align-self: stretch; display: flex; align-items: center; justify-content: center; }
+    .pub-rail::before {
       content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
       width: 1px; margin-left: -0.5px;
-      /* 用 --border-color 在深色主题下几乎看不见（#3a3a40 贴在 #2c2c32 上），
-         所以改成 muted + 低透明度，两个主题都够明显又不抢戏 */
+      /* ⚠️ 别用 var(--border-color)：深色主题下 #3a3a40 贴在卡片底 #2c2c32 上几乎看不见 */
       background: var(--text-muted); opacity: 0.35;
     }
-    .pub-slot:first-child .pub-slot-rail::before { top: 50%; }
-    .pub-slot:last-child .pub-slot-rail::before { bottom: 50%; }
-    .pub-slot-rail i {
+    .pub-slot:first-child .pub-rail::before,
+    .pub-log:first-child .pub-rail::before { top: 50%; }
+    .pub-slot:last-child .pub-rail::before,
+    .pub-log:last-child .pub-rail::before { bottom: 50%; }
+    .pub-rail i {
       position: relative; z-index: 1; width: 7px; height: 7px; border-radius: 50%;
-      /* ⚠️ 别用 var(--bg-tertiary)：深色主题里它和 --bg-card 是同一个值，圆点会直接隐形。
-         浅色主题下 --text-muted 是 #999，深色是 #777，两边都看得见。 */
+      /* ⚠️ 同理别用 var(--bg-tertiary)：深色主题里它和 --bg-card 是同一个值，圆点会隐形 */
       background: var(--text-muted);
       box-shadow: 0 0 0 3px var(--bg-card);
     }
     .pub-slot.next .pub-slot-time { color: var(--accent-blue); font-weight: 600; }
     .pub-slot.next .pub-slot-text { color: var(--accent-blue); font-weight: 500; }
-    .pub-slot.next .pub-slot-rail i { background: var(--accent-blue); }
+    .pub-slot.next .pub-rail i { background: var(--accent-blue); }
     .pub-slot-tag {
       margin-left: 8px; font-size: 0.68rem; font-weight: 400;
       color: var(--accent-blue); border: 1px solid currentColor;
       border-radius: 999px; padding: 1px 7px;
     }
 
-    /* 目标：只有名字 + 备注 + 完成标记 */
+    /* 目标：只有名字 + 备注 + 完成标记（+ 可展开的推进记录） */
     .pub-goals { display: flex; flex-direction: column; gap: 9px; }
     .pub-goal {
-      display: flex; align-items: flex-start; gap: 11px;
       background: var(--bg-card); border: 1px solid var(--border-light);
       border-radius: var(--radius-md); padding: 13px 16px;
     }
     .pub-goal.done { opacity: 0.72; }
+    .pub-goal-head { display: flex; align-items: flex-start; gap: 11px; }
+    .pub-goal.has-logs .pub-goal-head { cursor: pointer; }
     .pub-goal-mark {
       flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
       border: 1.5px solid var(--border-color);
@@ -190,6 +200,20 @@
     .pub-goal-name { font-size: 0.9rem; font-weight: 500; word-break: break-word; }
     .pub-goal.done .pub-goal-name { text-decoration: line-through; color: var(--text-muted); }
     .pub-goal-note { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; word-break: break-word; }
+    .pub-goal-meta { flex: 0 0 auto; align-self: center; font-size: 0.74rem; color: var(--text-muted); white-space: nowrap; }
+    .pub-goal-caret {
+      flex: 0 0 auto; align-self: center; line-height: 1;
+      font-size: 1.05rem; color: var(--text-muted);
+      transition: transform var(--transition);
+    }
+    .pub-goal.open .pub-goal-caret { transform: rotate(90deg); }
+
+    /* 推进记录：默认收起，点标题行展开 */
+    .pub-logs { display: none; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border-light); }
+    .pub-goal.open .pub-logs { display: block; }
+    .pub-log { display: grid; grid-template-columns: 42px 18px 1fr; align-items: center; }
+    .pub-log-date { font-size: 0.74rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .pub-log-text { font-size: 0.84rem; padding: 7px 0; word-break: break-word; }
 
     .pub-state { text-align: center; padding: 48px 16px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.9; }
     .pub-state strong { display: block; color: var(--text-secondary); font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
@@ -211,7 +235,9 @@
       .pub-row { padding: 11px 13px; }
       .pub-day { padding: 12px 14px 6px; }
       .pub-slot { grid-template-columns: 42px 16px 1fr; }
+      .pub-log { grid-template-columns: 38px 16px 1fr; }
       .pub-goal { padding: 12px 14px; }
+      .pub-goal-meta { display: none; }   /* 窄屏让位给标题，箭头还在 */
     }
   </style>
 </head>

@@ -99,6 +99,28 @@
       (desc ? esc(desc) : '') + '</div>';
   }
 
+  /* 名单型的一行（在读的书、在学的技能）。
+     badge 传了就显示一个胶囊标签（已读 / 已掌握），圆点同时变绿 —— 扫一眼就分得出完成与否。 */
+  function plainRow(title, sub, badge) {
+    var done = !!badge;
+    return '<div class="pub-row pub-row-dot' + (done ? ' done' : '') + '">' +
+      '<div class="pub-row-main">' +
+        '<div class="pub-row-title">' + esc(title || '未命名') + '</div>' +
+        (sub ? '<div class="pub-row-sub">' + esc(sub) + '</div>' : '') +
+      '</div>' +
+      (done ? '<span class="pub-row-badge">' + esc(badge) + '</span>' : '') +
+    '</div>';
+  }
+
+  /* 推进记录的日期标签：今年只写 9/20，跨年补两位年份 25/12/24 */
+  function logDate(str) {
+    if (!str) return '';
+    var d = parseDate(str);
+    var prefix = (d.getFullYear() === new Date().getFullYear())
+      ? '' : String(d.getFullYear()).slice(2) + '/';
+    return prefix + (d.getMonth() + 1) + '/' + d.getDate();
+  }
+
   /* =========================================================
      日记
      ========================================================= */
@@ -361,35 +383,37 @@
       html += '</div></div>';
     }
 
-    /* 在读 —— 字段是 title / notes（不是 author）。
+    /* 在读 / 已读 —— 字段是 title / notes（没有 author）。
        进度条整体去掉：书籍数据里根本没有 progress 这个字段，
-       之前那根永远是 0% 的空条，纯属噪音。 */
-    var reading = books.filter(function (b) { return b.status !== 'done'; }).slice(0, 6);
+       之前那根永远是 0% 的空条，纯属噪音。
+       已读的也要露出来 —— 这是「读完了什么」的存证，不显示等于白记。 */
+    var reading = books.filter(function (b) { return b.status !== 'done'; });
+    var finished = books.filter(function (b) { return b.status === 'done'; });
+
     if (reading.length) {
-      html += '<div class="pub-section"><div class="pub-section-title">在读</div><div class="pub-list">';
-      reading.forEach(function (b) {
-        html += '<div class="pub-row pub-row-dot">' +
-          '<div class="pub-row-main">' +
-            '<div class="pub-row-title">' + esc(b.title || '未命名') + '</div>' +
-            (b.notes ? '<div class="pub-row-sub">' + esc(b.notes) + '</div>' : '') +
-          '</div>' +
-        '</div>';
-      });
-      html += '</div></div>';
+      html += '<div class="pub-section"><div class="pub-section-title">在读</div><div class="pub-list">' +
+        reading.map(function (b) { return plainRow(b.title, b.notes, ''); }).join('') +
+        '</div></div>';
+    }
+    if (finished.length) {
+      html += '<div class="pub-section"><div class="pub-section-title">已读</div><div class="pub-list">' +
+        finished.map(function (b) { return plainRow(b.title, b.notes, '已读'); }).join('') +
+        '</div></div>';
     }
 
     /* 技能 —— 字段是 name / notes（之前错写成 note，备注一直读不出来） */
-    if (skills.length) {
-      html += '<div class="pub-section"><div class="pub-section-title">技能</div><div class="pub-list">';
-      skills.slice(0, 8).forEach(function (s) {
-        html += '<div class="pub-row pub-row-dot">' +
-          '<div class="pub-row-main">' +
-            '<div class="pub-row-title">' + esc(s.name || '未命名') + '</div>' +
-            (s.notes ? '<div class="pub-row-sub">' + esc(s.notes) + '</div>' : '') +
-          '</div>' +
-        '</div>';
-      });
-      html += '</div></div>';
+    var learning = skills.filter(function (s) { return s.status !== 'done'; });
+    var mastered = skills.filter(function (s) { return s.status === 'done'; });
+
+    if (learning.length) {
+      html += '<div class="pub-section"><div class="pub-section-title">在学</div><div class="pub-list">' +
+        learning.map(function (s) { return plainRow(s.name, s.notes, ''); }).join('') +
+        '</div></div>';
+    }
+    if (mastered.length) {
+      html += '<div class="pub-section"><div class="pub-section-title">已掌握</div><div class="pub-list">' +
+        mastered.map(function (s) { return plainRow(s.name, s.notes, '已掌握'); }).join('') +
+        '</div></div>';
     }
 
     body.innerHTML = html;
@@ -452,7 +476,7 @@
         var isNext = (k === nextIdx);
         html += '<div class="pub-slot' + (isNext ? ' next' : '') + '">' +
           '<span class="pub-slot-time">' + esc(s.time || '') + '</span>' +
-          '<span class="pub-slot-rail"><i></i></span>' +
+          '<span class="pub-rail"><i></i></span>' +
           '<span class="pub-slot-text">' + esc(s.activity || '') +
             (isNext ? '<span class="pub-slot-tag">接下来</span>' : '') +
           '</span>' +
@@ -475,13 +499,36 @@
     if (g.deadline) note.push('截止 ' + g.deadline);
 
     /* 目标的字段名是 title，不是 name —— 之前读错字段，页面上全是「未命名」。
-       进度条一并去掉：目标现在就只有「名字 + 备注 + 完成没完成」。 */
-    return '<div class="pub-goal' + (g.done ? ' done' : '') + '">' +
-      '<span class="pub-goal-mark' + (g.done ? ' done' : '') + '">' + (g.done ? '✓' : '') + '</span>' +
-      '<div class="pub-goal-main">' +
-        '<div class="pub-goal-name">' + esc(g.title || '未命名') + '</div>' +
-        (note.length ? '<div class="pub-goal-note">' + esc(note.join(' · ')) + '</div>' : '') +
+       进度条一并去掉：目标现在就只有「名字 + 备注 + 完成标记 + 推进记录」。 */
+    var logs = Array.isArray(g.logs) ? g.logs.slice().reverse() : [];   /* 最新的排上面 */
+    var hasLogs = logs.length > 0;
+
+    var logsHtml = hasLogs
+      ? '<div class="pub-logs">' + logs.map(function (l) {
+          return '<div class="pub-log">' +
+            '<span class="pub-log-date">' + esc(logDate(l.date)) + '</span>' +
+            '<span class="pub-rail"><i></i></span>' +
+            '<span class="pub-log-text">' + esc(l.content || '') + '</span>' +
+          '</div>';
+        }).join('') + '</div>'
+      : '';
+
+    /* 有记录的才可展开 —— 没记录的点了也没反应，别给人一个假按钮 */
+    var headAttrs = hasLogs ? ' role="button" tabindex="0" aria-expanded="false"' : '';
+
+    return '<div class="pub-goal' + (g.done ? ' done' : '') + (hasLogs ? ' has-logs' : '') + '">' +
+      '<div class="pub-goal-head"' + headAttrs + '>' +
+        '<span class="pub-goal-mark' + (g.done ? ' done' : '') + '">' + (g.done ? '✓' : '') + '</span>' +
+        '<div class="pub-goal-main">' +
+          '<div class="pub-goal-name">' + esc(g.title || '未命名') + '</div>' +
+          (note.length ? '<div class="pub-goal-note">' + esc(note.join(' · ')) + '</div>' : '') +
+        '</div>' +
+        (hasLogs
+          ? '<span class="pub-goal-meta">' + logs.length + ' 条跟进</span>' +
+            '<span class="pub-goal-caret" aria-hidden="true">›</span>'
+          : '') +
       '</div>' +
+      logsHtml +
     '</div>';
   }
 
@@ -509,6 +556,31 @@
     }
 
     body.innerHTML = html;
+  }
+
+  /* =========================================================
+     目标卡片：展开 / 收起推进记录
+     ========================================================= */
+
+  function toggleGoalCard(head) {
+    var card = head && head.parentNode;
+    if (!card || !card.classList || !card.classList.contains('has-logs')) return;
+    var open = card.classList.toggle('open');
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function onGoalAreaClick(e) {
+    var head = (e.target && e.target.closest) ? e.target.closest('.pub-goal-head') : null;
+    if (head) toggleGoalCard(head);
+  }
+
+  /* 键盘也能开合（head 上有 tabindex，回车/空格应该跟点击一个效果） */
+  function onGoalAreaKey(e) {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    var head = (e.target && e.target.closest) ? e.target.closest('.pub-goal-head') : null;
+    if (!head || !head.parentNode.classList.contains('has-logs')) return;
+    e.preventDefault();
+    toggleGoalCard(head);
   }
 
   /* =========================================================
@@ -630,6 +702,13 @@
     if (filter) {
       filter.addEventListener('change', onFilterChange);
       filter.addEventListener('click', onFilterClick);
+    }
+
+    /* 目标卡同理：卡片是渲染出来的，事件挂在容器上 */
+    var goalsBody = document.getElementById('goals-body');
+    if (goalsBody) {
+      goalsBody.addEventListener('click', onGoalAreaClick);
+      goalsBody.addEventListener('keydown', onGoalAreaKey);
     }
 
     loadDiary();

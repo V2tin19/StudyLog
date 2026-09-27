@@ -79,6 +79,19 @@ const Utils = {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   },
 
+  /* ---- 转义 ----
+     把用户输入拼进 innerHTML 之前先过一道。
+     日记正文走的是 textarea，不怕；但「一行文字直接拼成 HTML」的地方
+     （比如目标底下那条推进记录）不过这道，内容里带个 `<` 就会把版式弄乱。 */
+  esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+
   /* ---- 深拷贝 ---- */
   clone(obj) { return JSON.parse(JSON.stringify(obj)); },
 

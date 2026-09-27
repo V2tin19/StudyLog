@@ -36,6 +36,7 @@ const Extras = {
       ...data,
       done: false,
       progress: data.progress || 0,
+      logs: [],                    /* 推进记录，见下面「目标的推进记录」一节 */
       createdAt: new Date().toISOString()
     });
   },
@@ -51,6 +52,66 @@ const Extras = {
       if (g.done) g.progress = 100;
       Store.updateItem(this.GOALS_KEY, id, g);
     }
+  },
+
+  /* ==========================================
+     目标的推进记录
+
+     结构：goal.logs = [{ id, date: 'YYYY-MM-DD', content, createdAt }]
+     append 到数组末尾（= 最新），显示时反过来，最新的排在上面。
+
+     这一层数据跟着 goal_list 一起走 doc 同步，所以不用为它单独写同步逻辑。
+     ========================================== */
+
+  /* 老数据没有 logs 字段，一律当空数组，别当场造一个 */
+  getGoalLogs(goal) {
+    return (goal && Array.isArray(goal.logs)) ? goal.logs : [];
+  },
+
+  /* 日期标签：今年的显示 9/20，跨年的显示 25/12/24 */
+  _logDateLabel(date) {
+    const d = String(date || '');
+    const parts = d.split('-');
+    if (parts.length < 3) return d;
+    const [, mm, dd] = parts;
+    const sameYear = parts[0] === Utils.today().slice(0, 4);
+    return sameYear ? `${Number(mm)}/${Number(dd)}` : `${parts[0].slice(2, 4)}/${Number(mm)}/${Number(dd)}`;
+  },
+
+  /* 在目标页直接记一笔，不用进编辑页 */
+  addGoalLog(id) {
+    const input = document.getElementById('goal-log-input-' + id);
+    const text = (input ? input.value : '').trim();
+    if (!text) { if (input) input.focus(); return; }
+
+    const goal = Store.getItem(this.GOALS_KEY, id);
+    if (!goal) return;
+
+    /* Store.updateItem 是浅合并，所以这里必须传整个新数组，
+       不能只传新那一条，否则会把已有记录覆盖掉 */
+    const logs = this.getGoalLogs(goal).slice();
+    logs.push({
+      id: Utils.uid(),
+      date: Utils.today(),
+      content: text,
+      createdAt: new Date().toISOString()
+    });
+    this.updateGoal(id, { logs });
+
+    /* 整页重渲染会丢掉输入框焦点 —— 渲染完把焦点放回去，好连着记好几条 */
+    this.renderGoalsPage(document.getElementById('page-container'));
+    const again = document.getElementById('goal-log-input-' + id);
+    if (again) {
+      again.focus();
+      if (again.setSelectionRange) again.setSelectionRange(again.value.length, again.value.length);
+    }
+  },
+
+  deleteGoalLog(id, logId) {
+    const goal = Store.getItem(this.GOALS_KEY, id);
+    if (!goal) return;
+    this.updateGoal(id, { logs: this.getGoalLogs(goal).filter(l => l.id !== logId) });
+    this.renderGoalsPage(document.getElementById('page-container'));
   },
 
   /* ==========================================
@@ -186,6 +247,49 @@ const Extras = {
     const active = goals.filter(g => !g.done);
     const done = goals.filter(g => g.done);
 
+    /* 一个目标的完整块：标题行 + 已有记录 + （进行中的才有）随手记输入框 */
+    const itemHtml = (g, withForm) => {
+      const sub = [g.note || '', g.deadline ? '截止 ' + g.deadline : ''].filter(Boolean).join(' · ');
+      const logs = this.getGoalLogs(g).slice().reverse();   /* 最新的排上面 */
+
+      const logsHtml = logs.length
+        ? '<div class="goal-logs">' + logs.map(l => `
+            <div class="goal-log">
+              <span class="goal-log-date">${this._logDateLabel(l.date)}</span>
+              <span class="goal-log-text">${Utils.esc(l.content)}</span>
+              <button class="goal-log-del" title="删除这条记录"
+                      onclick="Extras.deleteGoalLog('${g.id}','${l.id}')">×</button>
+            </div>`).join('') + '</div>'
+        : '';
+
+      const head = withForm
+        ? `<div class="list-item">
+             <div class="habit-check" onclick="Extras.toggleGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))"></div>
+             <div class="list-item-main">
+               <div class="list-item-title">${Utils.esc(g.title)}</div>
+               ${sub ? `<div class="list-item-sub">${Utils.esc(sub)}</div>` : ''}
+             </div>
+             <button class="btn btn-sm btn-secondary" onclick="Extras.showEditGoal('${g.id}')">编辑</button>
+             <button class="btn btn-sm btn-danger" onclick="Extras.deleteGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))">×</button>
+           </div>`
+        : `<div class="list-item">
+             <div class="habit-check done" onclick="Extras.toggleGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))"></div>
+             <div class="list-item-main">
+               <div class="list-item-title" style="text-decoration:line-through;color:var(--text-muted)">${Utils.esc(g.title)}</div>
+             </div>
+             <button class="btn btn-sm btn-danger" onclick="Extras.deleteGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))">×</button>
+           </div>`;
+
+      const formHtml = withForm ? `
+        <div class="goal-log-form">
+          <input class="input" id="goal-log-input-${g.id}" placeholder="记一笔推进…（回车提交）"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();Extras.addGoalLog('${g.id}')}">
+          <button class="btn btn-sm btn-primary" onclick="Extras.addGoalLog('${g.id}')">记录</button>
+        </div>` : '';
+
+      return `<div class="goal-item">${head}${logsHtml}${formHtml}</div>`;
+    };
+
     container.innerHTML = `
       <div class="card page-enter mb-16">
         <div class="card-title">
@@ -196,34 +300,12 @@ const Extras = {
       </div>
       <div class="card mb-16">
         <div class="card-title"><span>进行中 (${active.length})</span></div>
-        ${active.length === 0 ? '<div class="empty-state-text">暂无目标</div>' :
-          active.map(g => {
-            /* 目标就是「名字 + 备注」两栏，不再有进度条和截止日期 */
-            const sub = [g.note || '', g.deadline ? '截止 ' + g.deadline : ''].filter(Boolean).join(' · ');
-            return `
-            <div class="list-item">
-              <div class="habit-check${g.done ? ' done' : ''}" onclick="Extras.toggleGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))"></div>
-              <div class="list-item-main">
-                <div class="list-item-title">${g.title}</div>
-                ${sub ? `<div class="list-item-sub">${sub}</div>` : ''}
-              </div>
-              <button class="btn btn-sm btn-secondary" onclick="Extras.showEditGoal('${g.id}')">编辑</button>
-              <button class="btn btn-sm btn-danger" onclick="Extras.deleteGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))">×</button>
-            </div>
-          `; }).join('')}
+        ${active.length === 0 ? '<div class="empty-state-text">暂无目标</div>' : active.map(g => itemHtml(g, true)).join('')}
       </div>
       ${done.length > 0 ? `
       <div class="card">
         <div class="card-title"><span>已完成 (${done.length})</span></div>
-        ${done.map(g => `
-          <div class="list-item">
-            <div class="habit-check done"></div>
-            <div class="list-item-main">
-              <div class="list-item-title" style="text-decoration:line-through;color:var(--text-muted)">${g.title}</div>
-            </div>
-            <button class="btn btn-sm btn-danger" onclick="Extras.deleteGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))">×</button>
-          </div>
-        `).join('')}
+        ${done.map(g => itemHtml(g, false)).join('')}
       </div>` : ''}
     `;
   },

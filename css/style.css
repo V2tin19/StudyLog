@@ -317,6 +317,34 @@ img { max-width: 100%; height: auto; display: block; }
 .list-item-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
 .list-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* ---- 目标的推进记录 ----
+   一个目标 = 标题行 + 若干条记录 + 随手记输入框，所以外层要包一层 .goal-item。
+   分隔线搬到这里，里面的 .list-item 就不再画线了（否则每个目标会多一条）。 */
+.goal-item { border-bottom: 1px solid var(--border-light); }
+.goal-item:last-child { border-bottom: none; }
+.goal-item .list-item { border-bottom: none; padding-bottom: 6px; }
+
+.goal-logs { padding: 0 0 8px 32px; }   /* 左缩进对齐标题文字，看得出是挂在目标下面的 */
+.goal-log { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
+.goal-log-date {
+  flex: 0 0 auto; font-size: 0.74rem; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.goal-log-text {
+  flex: 1; min-width: 0; font-size: 0.8rem; color: var(--text-secondary);
+  word-break: break-word;
+}
+.goal-log-del {
+  flex: 0 0 auto; font-size: 0.85rem; line-height: 1; padding: 0 4px;
+  color: var(--text-muted); border-radius: 4px;
+  opacity: 0.35;                          /* 触屏上 hover 不了，所以一直留个淡淡的影子 */
+  transition: all var(--transition);
+}
+.goal-log-del:hover { opacity: 1; color: var(--accent-red); }
+
+.goal-log-form { display: flex; gap: 8px; padding: 0 0 14px 32px; }
+.goal-log-form .input { flex: 1; padding: 6px 10px; font-size: 0.82rem; }
+
 /* ---- 心情选择器 ---- */
 .mood-selector {
   display: flex; gap: 8px; flex-wrap: wrap;
