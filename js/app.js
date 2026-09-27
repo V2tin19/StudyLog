@@ -7,6 +7,7 @@ const App = {
   currentPage: 'dashboard',
 
   pages: {
+    timeline: { title: '时间线', render: (c) => Timeline.render(c) },
     dashboard: { title: '仪表盘', render: (c) => Dashboard.render(c) },
     diary: { title: '日记', render: (c) => Diary.renderDiaryPage(c) },
     study: { title: '学习', render: (c) => Study.renderStudyPage(c) },

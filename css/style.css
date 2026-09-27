@@ -592,3 +592,46 @@ tr:hover td { background: var(--bg-hover); }
 .font-bold { font-weight: 600; }
 .w-full { width: 100%; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- 时间线 ---- */
+.timeline { position: relative; padding-left: 56px; }
+.timeline::before {
+  content: '';
+  position: absolute; left: 27px; top: 12px; bottom: 12px;
+  width: 2px; border-radius: 1px;
+  background: var(--border-color);
+}
+.timeline-item { position: relative; padding-bottom: 26px; }
+.timeline-item:last-child { padding-bottom: 0; }
+.timeline-dot {
+  position: absolute; left: 27px; top: 22px;
+  transform: translateX(-50%);
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(123,164,199,0.15);
+}
+.timeline-date {
+  position: absolute; left: 42px; top: 16px;
+  font-size: 0.75rem; font-weight: 600;
+  color: var(--accent-blue); letter-spacing: 0.3px;
+}
+.timeline-card {
+  margin-top: 32px; padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: box-shadow var(--transition), border-color var(--transition);
+}
+.timeline-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-color); }
+.timeline-card-date {
+  font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px;
+}
+.timeline-card-text {
+  font-size: 0.88rem; line-height: 1.7; color: var(--text-primary);
+  white-space: pre-wrap; word-break: break-word;
+}
+.timeline-imgs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.timeline-imgs img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; }
