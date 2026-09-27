@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#f5f0eb">
+  <meta name="robots" content="noindex">
+  <title>StudyLog · 写作台</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect x=%2215%22 y=%2210%22 width=%2270%22 height=%2280%22 rx=%2212%22 fill=%22%23f5f0eb%22 stroke=%22%237ba4c7%22 stroke-width=%228%22/><line x1=%2235%22 y1=%2238%22 x2=%2265%22 y2=%2238%22 stroke=%22%237ba4c7%22 stroke-width=%228%22 stroke-linecap=%22round%22/><line x1=%2235%22 y1=%2256%22 x2=%2265%22 y2=%2256%22 stroke=%22%237ba4c7%22 stroke-width=%228%22 stroke-linecap=%22round%22/><line x1=%2235%22 y1=%2274%22 x2=%2255%22 y2=%2274%22 stroke=%22%237ba4c7%22 stroke-width=%228%22 stroke-linecap=%22round%22/></svg>">
+  <style>
+    /* 写作台门禁：默认遮住整页，只有本机存过令牌才立刻揭开（避免闪一下） */
+    .lock-screen {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; background: var(--bg-primary);
+    }
+    html.unlocked .lock-screen { display: none !important; }
+
+    .lock-box {
+      width: 100%; max-width: 380px; padding: 32px 28px; text-align: center;
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+    }
+    .lock-brand { font-size: 0.82rem; letter-spacing: 0.08em; color: var(--text-muted); }
+    .lock-brand span { color: var(--accent-blue); }
+    .lock-title { font-size: 1.25rem; font-weight: 600; margin-top: 10px; }
+    .lock-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.8; margin-top: 10px; }
+    .lock-field { display: flex; gap: 8px; margin-top: 22px; }
+    .lock-field .input { flex: 1; min-width: 0; }
+    .lock-msg { font-size: 0.78rem; color: var(--text-muted); margin-top: 10px; min-height: 1.3em; line-height: 1.6; }
+    .lock-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; }
+    .lock-link { font-size: 0.76rem; color: var(--text-muted); cursor: pointer; }
+    .lock-link:hover { color: var(--accent-blue); }
+  </style>
+  <script>
+    /* 关键：在页面渲染前就判断，避免已登录的人看见锁屏闪一下 */
+    try {
+      if (localStorage.getItem('studylog_admin_token') || sessionStorage.getItem('studylog_local_only')) {
+        document.documentElement.classList.add('unlocked');
+      }
+    } catch (e) { /* 隐私模式等场景，保持上锁 */ }
+  </script>
+</head>
+<body>
+  <!-- 门禁遮罩：没有令牌的人只会看到这个 -->
+  <div id="lock-screen" class="lock-screen">
+    <div class="lock-box">
+      <div class="lock-brand">Study<span>Log</span></div>
+      <h1 class="lock-title">私人写作台</h1>
+      <p class="lock-desc">
+        这里是站主自己写日记的地方，需要管理令牌才能进入。<br>
+        如果你只是想看学习记录，请回<a href="./" style="color:var(--accent-blue);">站点首页</a>。
+      </p>
+      <div class="lock-field">
+        <input class="input" id="lock-token" type="password" autocomplete="off" placeholder="管理令牌">
+        <button class="btn btn-primary" id="lock-enter">进入</button>
+      </div>
+      <div class="lock-msg" id="lock-msg"></div>
+      <div class="lock-foot">
+        <a class="lock-link" href="./">← 去看公开页</a>
+        <a class="lock-link" id="lock-offline">没有令牌？仅本地使用</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 顶部状态栏 -->
+  <header id="app-header">
+    <div class="header-left">
+      <button id="menu-toggle" class="icon-btn" aria-label="菜单">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <h1 class="app-title" id="page-title">仪表盘</h1>
+    </div>
+    <div class="header-right">
+      <span class="header-date" id="header-date"></span>
+      <button id="theme-toggle" class="icon-btn" aria-label="切换主题">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- 侧边导航（桌面端） -->
+  <nav id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-brand">StudyLog</span>
+    </div>
+    <ul class="nav-list">
+      <li><a href="#/timeline" class="nav-item" data-page="timeline"><span class="nav-label">时间线</span></a></li>
+      <li><a href="#/diary" class="nav-item" data-page="diary"><span class="nav-label">日记</span></a></li>
+      <li><a href="#/study" class="nav-item" data-page="study"><span class="nav-label">学习</span></a></li>
+      <li><a href="#/schedule" class="nav-item" data-page="schedule"><span class="nav-label">日程</span></a></li>
+      <li><a href="#/goals" class="nav-item" data-page="goals"><span class="nav-label">目标</span></a></li>
+      <li><a href="#/dashboard" class="nav-item active" data-page="dashboard"><span class="nav-label">仪表盘</span></a></li>
+      <li><a href="#/settings" class="nav-item" data-page="settings"><span class="nav-label">设置</span></a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <span class="version">v1.0 · 纯本地</span>
+    </div>
+  </nav>
+
+  <!-- 侧边遮罩 -->
+  <div id="sidebar-overlay"></div>
+
+  <!-- 主内容区域 -->
+  <main id="main-content">
+    <div id="page-container"></div>
+  </main>
+
+  <!-- 底部导航（移动端） -->
+  <nav id="bottom-nav">
+    <a href="#/timeline" class="bottom-nav-item" data-page="timeline">
+      <span class="bottom-nav-label">时间线</span>
+    </a>
+    <a href="#/dashboard" class="bottom-nav-item active" data-page="dashboard">
+      <span class="bottom-nav-label">首页</span>
+    </a>
+    <a href="#/diary" class="bottom-nav-item" data-page="diary">
+      <span class="bottom-nav-label">日记</span>
+    </a>
+    <a href="#/study" class="bottom-nav-item" data-page="study">
+      <span class="bottom-nav-label">学习</span>
+    </a>
+  </nav>
+
+  <!-- 确认对话框 -->
+  <div id="confirm-dialog" class="dialog-overlay hidden">
+    <div class="dialog-box">
+      <p class="dialog-msg" id="confirm-msg">确定执行此操作？</p>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="confirm-cancel">取消</button>
+        <button class="btn btn-primary" id="confirm-ok">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/modules/storage.js"></script>
+  <script src="js/modules/utils.js"></script>
+  <script src="js/modules/diary.js"></script>
+  <script src="js/modules/timeline.js"></script>
+  <script src="js/modules/study.js"></script>
+  <script src="js/modules/dashboard.js"></script>
+  <script src="js/modules/settings.js"></script>
+  <script src="js/modules/cloud.js"></script>
+  <script src="js/modules/extras.js"></script>
+  <script src="js/lock.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

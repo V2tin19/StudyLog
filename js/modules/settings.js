@@ -102,6 +102,10 @@ const Settings = {
           把本地写的日记发布到你自己的网站上，朋友通过公开页就能看到。<br>
           写入权限由服务器校验令牌，别人没有令牌就改不了你的内容。
         </div>
+        <div class="text-sm text-muted" style="line-height:1.8;margin-bottom:12px;">
+          部署后：朋友访问站点根地址 <code>/</code> 看到的是只读公开页；<br>
+          你现在所在的写作台是 <code>/write</code>，这个地址只自己留着。
+        </div>
         <div class="form-group">
           <label class="form-label">管理令牌</label>
           <input class="input" id="cloud-token" type="password" autocomplete="off"
@@ -112,7 +116,7 @@ const Settings = {
           <button class="btn btn-secondary" id="cloud-btn-save" onclick="Cloud.handleSaveToken()">保存令牌</button>
           <button class="btn btn-secondary" id="cloud-btn-verify" onclick="Cloud.handleVerify()">测试连接</button>
           <button class="btn btn-primary" id="cloud-btn-publish" onclick="Cloud.handlePublish()">发布到云端</button>
-          <a class="btn btn-secondary" href="view.html" target="_blank" rel="noopener">查看公开页</a>
+          <a class="btn btn-secondary" href="index.html" target="_blank" rel="noopener">查看公开页</a>
         </div>
         <div id="cloud-status" class="text-sm mt-8"></div>
       </div>

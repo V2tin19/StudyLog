@@ -1,7 +1,9 @@
 User-agent: *
 Allow: /
+Disallow: /write
 
 # 说明：
-# 公开页 view.html 里带了 <meta name="robots" content="noindex">，
+# 站点根路径是公开只读页，页面里带了 <meta name="robots" content="noindex">，
 # 搜索引擎可以抓取但不会把私人日记收录进结果页。
-# 若想让它可被搜索到，删掉 view.html 里那行 meta 即可。
+# 写作台 /write 不需要被搜到，上面直接禁止爬取。
+# 若想让公开页可被搜索到，删掉 index.html 里那行 meta 即可。

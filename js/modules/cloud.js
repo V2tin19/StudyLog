@@ -61,14 +61,35 @@ const Cloud = {
 
   /* ---- 与服务器通信 ---- */
 
+  /* 读响应：必须是 JSON，且必须明确 ok:true 才算成功。
+     如果被 Cloudflare Access 之类的登录页拦了，返回的是 HTML，
+     绝不能把它当成成功——那是「静默失败」，比报错更危险。 */
+  async _readJson(res, action) {
+    const text = await res.text();
+
+    let data = null;
+    try { data = JSON.parse(text); } catch { data = null; }
+
+    if (!data) {
+      const looksLikeLogin = res.redirected || /<html|<!doctype/i.test(text);
+      if (looksLikeLogin) {
+        throw new Error('请求被登录页拦截了（可能已开启 Cloudflare Access）。请先在浏览器里登录，再回来重试');
+      }
+      throw new Error(`${action}失败：服务器返回了非预期的内容（HTTP ${res.status}）`);
+    }
+
+    if (!res.ok) throw new Error(data.error || `${action}失败（HTTP ${res.status}）`);
+    if (data.ok !== true) throw new Error(data.error || `${action}失败：服务端没有确认，请检查令牌`);
+
+    return data;
+  },
+
   async verify() {
     const token = this._resolveToken();
     if (!token) throw new Error('请先填入管理令牌');
 
     const res = await fetch(this.API, { headers: { authorization: 'Bearer ' + token } });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || ('验证失败（' + res.status + '）'));
-    return data;
+    return this._readJson(res, '验证');
   },
 
   async publish() {
@@ -83,8 +104,11 @@ const Cloud = {
       headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
       body: JSON.stringify({ entries })
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || ('发布失败（' + res.status + '）'));
+
+    const data = await this._readJson(res, '发布');
+    if (typeof data.saved !== 'number') {
+      throw new Error('发布失败：服务端返回的结果不完整，可能被中间层拦截了');
+    }
     return data;
   },
 
