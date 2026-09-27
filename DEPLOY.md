@@ -203,6 +203,23 @@ crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-','')
 
 ## 常见问题
 
+**我改了代码 / AI 帮我改好了，但线上打开还是老样子**
+先怀疑**部署没生效**，而不是代码有问题。最常见的原因是 **Cloudflare 与 GitHub 的连接断了**。
+
+去 Pages 项目页面看看有没有这条提示：**「此项目已与您的 Git 帐户断开连接。这可能会导致部署失败」**。
+
+这是**静默故障** —— 网站照常能访问、接口照常工作，只是永远停在最后一次成功的部署上，之后 push 什么都不发生。非常容易误判成「代码写错了」。
+
+修复步骤：
+
+1. **GitHub 侧**：打开 [github.com/settings/installations](https://github.com/settings/installations)，找到 **Cloudflare Pages**（或 Cloudflare Workers and Pages）→ 点 **Configure** → 确认它对 `V2tin19/StudyLog` 有访问权限。如果这个应用不存在了，重新安装一次并授权该仓库。
+2. **Cloudflare 侧**：Pages 项目 → **设置** → **构建与部署** → 找到 Git 仓库那一栏 → 点 **管理 / 重新连接** → 跳转 GitHub 授权 → 仓库选 `V2tin19/StudyLog`，生产分支选 `main`。
+3. ⚠️ **重连时不要改动构建配置** —— 框架预设仍然是 `None`、构建命令仍然留空、输出目录仍然是 `/`。填错会导致部署失败或文件缺失。
+4. 连好后手动触发一次：**部署**（Deployments）→ 最新一条 → 右侧 `···` → **重试部署**。
+5. 验证：打开 `https://你的项目.pages.dev/`，标题应该变成**「我的学习记录」**（公开页）；`/write` 应该显示**锁屏**。
+
+> D1 绑定和环境变量是独立配置，重连 Git **不会**丢掉它们，不用重新配。
+
 **执行 `schema.sql` 时报「Requests without any query are not supported」**
 控制台没收到可执行语句，不是 SQL 写错了。原因通常是输入框只保留了粘贴内容的第一行，而第一行是注释。解决办法见第一步下面的说明：改成一**条一条粘、一条一条执行**。
 
