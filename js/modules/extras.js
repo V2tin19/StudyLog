@@ -197,18 +197,20 @@ const Extras = {
       <div class="card mb-16">
         <div class="card-title"><span>进行中 (${active.length})</span></div>
         ${active.length === 0 ? '<div class="empty-state-text">暂无目标</div>' :
-          active.map(g => `
+          active.map(g => {
+            /* 目标就是「名字 + 备注」两栏，不再有进度条和截止日期 */
+            const sub = [g.note || '', g.deadline ? '截止 ' + g.deadline : ''].filter(Boolean).join(' · ');
+            return `
             <div class="list-item">
               <div class="habit-check${g.done ? ' done' : ''}" onclick="Extras.toggleGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))"></div>
               <div class="list-item-main">
                 <div class="list-item-title">${g.title}</div>
-                ${g.deadline ? `<div class="list-item-sub">截止 ${g.deadline}</div>` : ''}
-                <div class="progress-bar mt-8"><div class="progress-fill" style="width:${g.progress || 0}%"></div></div>
+                ${sub ? `<div class="list-item-sub">${sub}</div>` : ''}
               </div>
               <button class="btn btn-sm btn-secondary" onclick="Extras.showEditGoal('${g.id}')">编辑</button>
               <button class="btn btn-sm btn-danger" onclick="Extras.deleteGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))">×</button>
             </div>
-          `).join('')}
+          `; }).join('')}
       </div>
       ${done.length > 0 ? `
       <div class="card">
@@ -231,10 +233,8 @@ const Extras = {
     container.innerHTML = `
       <div class="card page-enter">
         <div class="card-title"><span>添加目标</span><button class="btn btn-sm btn-secondary" onclick="Extras.renderGoalsPage(document.getElementById('page-container'))">← 返回</button></div>
-        <div class="form-group"><label class="form-label">目标名称</label><input class="input" id="goal-title" placeholder="如：减重5kg、读完10本书…"></div>
-        <div class="form-group"><label class="form-label">截止日期</label><input class="input" id="goal-deadline" type="date"></div>
-        <div class="form-group"><label class="form-label">当前进度 (%)</label><input class="input" id="goal-progress" type="number" min="0" max="100" value="0"></div>
-        <div class="form-group"><label class="form-label">备注</label><textarea class="textarea" id="goal-note" rows="3"></textarea></div>
+        <div class="form-group"><label class="form-label">目标名称</label><input class="input" id="goal-title" placeholder="如：学完 Spring Boot、跑通 WMS 项目…"></div>
+        <div class="form-group"><label class="form-label">备注</label><textarea class="textarea" id="goal-note" rows="3" placeholder="可选"></textarea></div>
         <button class="btn btn-primary" onclick="Extras.saveGoal()">保存</button>
       </div>
     `;
@@ -243,10 +243,8 @@ const Extras = {
   saveGoal() {
     const title = document.getElementById('goal-title')?.value;
     if (!title) { alert('请输入目标名称'); return; }
-    const deadline = document.getElementById('goal-deadline')?.value || '';
-    const progress = parseInt(document.getElementById('goal-progress')?.value) || 0;
     const note = document.getElementById('goal-note')?.value || '';
-    this.addGoal({ title, deadline, progress, note });
+    this.addGoal({ title, note });
     this.renderGoalsPage(document.getElementById('page-container'));
   },
 
@@ -258,8 +256,6 @@ const Extras = {
       <div class="card page-enter">
         <div class="card-title"><span>编辑目标</span><button class="btn btn-sm btn-secondary" onclick="Extras.renderGoalsPage(document.getElementById('page-container'))">← 返回</button></div>
         <div class="form-group"><label class="form-label">目标名称</label><input class="input" id="goal-title" value="${g.title}"></div>
-        <div class="form-group"><label class="form-label">截止日期</label><input class="input" id="goal-deadline" type="date" value="${g.deadline || ''}"></div>
-        <div class="form-group"><label class="form-label">当前进度 (%)</label><input class="input" id="goal-progress" type="number" min="0" max="100" value="${g.progress || 0}"></div>
         <div class="form-group"><label class="form-label">备注</label><textarea class="textarea" id="goal-note" rows="3">${g.note || ''}</textarea></div>
         <button class="btn btn-primary" onclick="Extras.saveEditGoal('${id}')">保存</button>
       </div>
@@ -269,10 +265,11 @@ const Extras = {
   saveEditGoal(id) {
     const title = document.getElementById('goal-title')?.value;
     if (!title) { alert('请输入目标名称'); return; }
-    const deadline = document.getElementById('goal-deadline')?.value || '';
-    const progress = parseInt(document.getElementById('goal-progress')?.value) || 0;
     const note = document.getElementById('goal-note')?.value || '';
-    this.updateGoal(id, { title, deadline, progress, note });
+    /* 表单里已经没有截止日期和进度了，所以只更新这两项。
+       Store.updateItem 是浅合并，老数据里残留的 deadline / progress 会原样留着，
+       不在这里抹掉 —— 万一以后还想要，数据还在。 */
+    this.updateGoal(id, { title, note });
     this.renderGoalsPage(document.getElementById('page-container'));
   }
 };

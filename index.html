@@ -97,29 +97,98 @@
     .pub-row-title { font-size: 0.9rem; font-weight: 500; word-break: break-word; }
     .pub-row-sub { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; word-break: break-word; }
     .pub-row-value { font-size: 0.82rem; color: var(--accent-blue); white-space: nowrap; }
+    /* 纯名单型条目（在读 / 技能）前面点一个小圆点，跟带数值的行区分开 */
+    .pub-row-dot::before {
+      content: ''; flex: 0 0 auto; width: 5px; height: 5px; border-radius: 50%;
+      background: var(--accent-blue); opacity: 0.5;
+    }
 
-    .pub-progress { height: 5px; background: var(--bg-tertiary); border-radius: 999px; overflow: hidden; margin-top: 9px; }
-    .pub-progress-bar { height: 100%; background: var(--accent-blue); border-radius: 999px; transition: width var(--transition); }
-    .pub-progress-bar.done { background: var(--accent-green); }
+    /* 日记筛选条 */
+    .pub-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+    .pub-select {
+      -webkit-appearance: none; appearance: none;
+      padding: 6px 28px 6px 13px; border-radius: 999px;
+      font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;
+      background-color: var(--bg-card); border: 1px solid var(--border-light);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23999999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 11px center;
+      transition: all var(--transition);
+    }
+    .pub-select:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
+    .pub-filter.filtering .pub-select { color: var(--accent-blue); border-color: var(--accent-blue); }
+    .pub-filter-clear {
+      font-size: 0.78rem; color: var(--text-muted);
+      padding: 6px 12px; border-radius: 999px; border: 1px solid transparent;
+      transition: all var(--transition);
+    }
+    .pub-filter-clear:hover { color: var(--accent-red); border-color: var(--accent-red); }
 
-    /* 日程 */
-    .pub-day { margin-bottom: 16px; }
-    .pub-day-name { font-size: 0.84rem; font-weight: 600; margin-bottom: 7px; }
-    .pub-day-name.today { color: var(--accent-blue); }
-    .pub-slot-row { display: flex; gap: 12px; padding: 6px 0 6px 2px; font-size: 0.88rem; }
-    .pub-slot-time { color: var(--text-muted); font-size: 0.78rem; min-width: 44px; font-variant-numeric: tabular-nums; }
+    /* 日程：一天一张卡，时段走时间轴 */
+    .pub-day {
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg); padding: 14px 18px 8px;
+      margin-bottom: 12px;
+    }
+    .pub-day.today { border-color: var(--accent-blue); }
+    .pub-day-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .pub-day-name { font-size: 0.88rem; font-weight: 600; }
+    .pub-day-badge {
+      font-size: 0.68rem; color: var(--accent-blue);
+      border: 1px solid var(--accent-blue); border-radius: 999px; padding: 1px 7px;
+    }
+    .pub-day-count { margin-left: auto; font-size: 0.72rem; color: var(--text-muted); }
 
-    /* 目标 */
+    .pub-slot { display: grid; grid-template-columns: 46px 18px 1fr; align-items: center; }
+    .pub-slot-time {
+      font-size: 0.76rem; color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .pub-slot-text { font-size: 0.88rem; padding: 8px 0; word-break: break-word; }
+    /* 时间轴：竖线 + 站点圆点。圆点用 box-shadow 在线上"咬"出一个缺口 */
+    .pub-slot-rail { position: relative; align-self: stretch; display: flex; align-items: center; justify-content: center; }
+    .pub-slot-rail::before {
+      content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
+      width: 1px; margin-left: -0.5px;
+      /* 用 --border-color 在深色主题下几乎看不见（#3a3a40 贴在 #2c2c32 上），
+         所以改成 muted + 低透明度，两个主题都够明显又不抢戏 */
+      background: var(--text-muted); opacity: 0.35;
+    }
+    .pub-slot:first-child .pub-slot-rail::before { top: 50%; }
+    .pub-slot:last-child .pub-slot-rail::before { bottom: 50%; }
+    .pub-slot-rail i {
+      position: relative; z-index: 1; width: 7px; height: 7px; border-radius: 50%;
+      /* ⚠️ 别用 var(--bg-tertiary)：深色主题里它和 --bg-card 是同一个值，圆点会直接隐形。
+         浅色主题下 --text-muted 是 #999，深色是 #777，两边都看得见。 */
+      background: var(--text-muted);
+      box-shadow: 0 0 0 3px var(--bg-card);
+    }
+    .pub-slot.next .pub-slot-time { color: var(--accent-blue); font-weight: 600; }
+    .pub-slot.next .pub-slot-text { color: var(--accent-blue); font-weight: 500; }
+    .pub-slot.next .pub-slot-rail i { background: var(--accent-blue); }
+    .pub-slot-tag {
+      margin-left: 8px; font-size: 0.68rem; font-weight: 400;
+      color: var(--accent-blue); border: 1px solid currentColor;
+      border-radius: 999px; padding: 1px 7px;
+    }
+
+    /* 目标：只有名字 + 备注 + 完成标记 */
     .pub-goals { display: flex; flex-direction: column; gap: 9px; }
     .pub-goal {
+      display: flex; align-items: flex-start; gap: 11px;
       background: var(--bg-card); border: 1px solid var(--border-light);
       border-radius: var(--radius-md); padding: 13px 16px;
     }
-    .pub-goal.done { opacity: 0.6; }
-    .pub-goal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .pub-goal.done { opacity: 0.72; }
+    .pub-goal-mark {
+      flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
+      border: 1.5px solid var(--border-color);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.62rem; line-height: 1; color: #fff;
+    }
+    .pub-goal-mark.done { background: var(--accent-green); border-color: var(--accent-green); }
+    .pub-goal-main { flex: 1; min-width: 0; }
     .pub-goal-name { font-size: 0.9rem; font-weight: 500; word-break: break-word; }
-    .pub-goal.done .pub-goal-name { text-decoration: line-through; }
-    .pub-goal-pct { font-size: 0.78rem; color: var(--accent-blue); white-space: nowrap; }
+    .pub-goal.done .pub-goal-name { text-decoration: line-through; color: var(--text-muted); }
     .pub-goal-note { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; word-break: break-word; }
 
     .pub-state { text-align: center; padding: 48px 16px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.9; }
@@ -140,6 +209,9 @@
       .pub-main { padding: 20px 16px 56px; }
       .pub-card { padding: 15px 16px; }
       .pub-row { padding: 11px 13px; }
+      .pub-day { padding: 12px 14px 6px; }
+      .pub-slot { grid-template-columns: 42px 16px 1fr; }
+      .pub-goal { padding: 12px 14px; }
     }
   </style>
 </head>
@@ -165,6 +237,7 @@
     </nav>
 
     <section class="pub-panel" id="pub-panel-diary">
+      <div class="pub-filter hidden" id="pub-filter"></div>
       <div class="pub-hero" id="pub-hero"></div>
       <div id="pub-timeline" class="pub-timeline"></div>
       <div class="pub-more-wrap hidden" id="pub-more-wrap">

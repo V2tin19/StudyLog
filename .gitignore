@@ -27,3 +27,6 @@ build/
 
 # 本地协作记录（只在本机有意义，不进仓库）
 .workbuddy/
+
+# 旧数据迁移用的导入文件（用完即删）
+diary-import-*.json

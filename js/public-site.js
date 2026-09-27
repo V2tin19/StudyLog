@@ -30,9 +30,14 @@
 
   /* 日记分页状态 */
   var offset = 0;
-  var total = 0;
+  var lastBatch = 0;      /* 上一批实际拿到几条 —— 用来判断还有没有更早的 */
   var loading = false;
   var firstLoad = true;
+
+  /* 日记筛选（年份 / 月份，走服务端的 year / month 参数） */
+  var filterYear = '';
+  var filterMonth = '';
+  var latestYear = 0;     /* 只选了月份没选年份时，用它补上（接口的 month 必须配 year 才生效） */
 
   /* 其他三类数据的状态 */
   var docs = null;
@@ -69,10 +74,11 @@
     return (d.getMonth() + 1) + '/' + d.getDate();
   }
 
-  function clampPct(v) {
-    var n = Number(v);
-    if (!isFinite(n)) n = 0;
-    return Math.max(0, Math.min(100, Math.round(n)));
+  /* "08:30" → 510（分钟）。用来排序和判断「接下来」。格式不对返回 null */
+  function mins(t) {
+    var m = String(t || '').match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]);
   }
 
   function fmtDuration(min) {
@@ -138,13 +144,6 @@
       statHtml(shortDate(stats.lastDate), '最近更新');
   }
 
-  function updateMoreButton() {
-    var wrap = document.getElementById('pub-more-wrap');
-    if (!wrap) return;
-    if (offset < total) wrap.classList.remove('hidden');
-    else wrap.classList.add('hidden');
-  }
-
   function showDiaryError(msg) {
     var tl = document.getElementById('pub-timeline');
     if (!tl) return;
@@ -164,6 +163,103 @@
     tl.appendChild(tip);
   }
 
+  function updateMoreButton() {
+    var wrap = document.getElementById('pub-more-wrap');
+    if (!wrap) return;
+    /* 上一批装满了一页 → 可能还有更早的；不满 → 到底了。
+       用这个判断而不是比对总数，是因为筛选后的总数接口不返回。 */
+    if (lastBatch >= PAGE_SIZE) wrap.classList.remove('hidden');
+    else wrap.classList.add('hidden');
+  }
+
+  /* ---------- 日记筛选条（年份 / 月份） ---------- */
+
+  function buildFilter(stats) {
+    var box = document.getElementById('pub-filter');
+    if (!box) return;
+
+    var firstY = (stats && stats.firstDate) ? Number(String(stats.firstDate).slice(0, 4)) : 0;
+    var lastY = (stats && stats.lastDate) ? Number(String(stats.lastDate).slice(0, 4)) : 0;
+    if (lastY) latestYear = lastY;
+
+    var years = [];
+    if (firstY && lastY) {
+      for (var y = lastY; y >= firstY; y--) years.push(y);
+    }
+
+    var html = '';
+
+    /* 只有一年的时候不摆年份下拉 —— 一个选项的下拉是纯噪音 */
+    if (years.length > 1) {
+      html += '<select class="pub-select" id="pub-filter-year" aria-label="按年份筛选">' +
+        '<option value="">全部年份</option>' +
+        years.map(function (y) {
+          return '<option value="' + y + '"' + (String(y) === filterYear ? ' selected' : '') + '>' +
+            y + ' 年</option>';
+        }).join('') + '</select>';
+    }
+
+    html += '<select class="pub-select" id="pub-filter-month" aria-label="按月份筛选">' +
+      '<option value="">全部月份</option>';
+    for (var m = 1; m <= 12; m++) {
+      html += '<option value="' + m + '"' + (String(m) === filterMonth ? ' selected' : '') + '>' +
+        m + ' 月</option>';
+    }
+    html += '</select>';
+
+    if (filterYear || filterMonth) {
+      html += '<button class="pub-filter-clear" id="pub-filter-clear" type="button">清除</button>';
+    }
+
+    box.innerHTML = html;
+    box.classList.remove('hidden');
+    box.classList.toggle('filtering', !!(filterYear || filterMonth));
+  }
+
+  /* 改了筛选条件：清空列表重新从第一页拉 */
+  function resetAndReload() {
+    offset = 0;
+    lastBatch = 0;
+    firstLoad = true;
+    var tl = document.getElementById('pub-timeline');
+    if (tl) tl.innerHTML = '<div class="pub-state">正在读取…</div>';
+    var more = document.getElementById('pub-more-wrap');
+    if (more) more.classList.add('hidden');
+    loadDiary();
+  }
+
+  function onFilterChange(e) {
+    var t = e.target;
+    if (!t || !t.id) return;
+
+    if (t.id === 'pub-filter-year') {
+      filterYear = t.value;
+    } else if (t.id === 'pub-filter-month') {
+      filterMonth = t.value;
+      /* 接口的 month 必须带 year 才生效。只挑了月份时，自动补上最近那一年，
+         并且重建筛选条把年份也显示出来，免得界面和实际查询对不上。 */
+      if (filterMonth && !filterYear && latestYear) filterYear = String(latestYear);
+    } else {
+      return;
+    }
+    resetAndReload();
+  }
+
+  function onFilterClick(e) {
+    if (e.target && e.target.id === 'pub-filter-clear') {
+      filterYear = '';
+      filterMonth = '';
+      resetAndReload();
+    }
+  }
+
+  function diaryUrl() {
+    var url = API + '?limit=' + PAGE_SIZE + '&offset=' + offset;
+    if (filterYear) url += '&year=' + encodeURIComponent(filterYear);
+    if (filterMonth) url += '&month=' + encodeURIComponent(filterMonth);
+    return url;
+  }
+
   function loadDiary() {
     if (loading) return;
     loading = true;
@@ -174,7 +270,7 @@
       btn.textContent = '加载中…';
     }
 
-    fetch(API + '?limit=' + PAGE_SIZE + '&offset=' + offset, { headers: { accept: 'application/json' } })
+    fetch(diaryUrl(), { headers: { accept: 'application/json' } })
       .then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (data) {
           if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
@@ -187,18 +283,22 @@
 
         if (firstLoad) {
           tl.innerHTML = '';
-          total = (data.stats && data.stats.total) || 0;
           renderStats(data.stats);
+          buildFilter(data.stats);
         }
 
+        var filtering = !!(filterYear || filterMonth);
+
         if (entries.length === 0 && offset === 0) {
-          tl.innerHTML = stateHtml('还没有记录');
+          tl.innerHTML = filtering
+            ? stateHtml('这个范围里没有记录')
+            : stateHtml('还没有记录');
         } else if (entries.length) {
           tl.insertAdjacentHTML('beforeend', entries.map(entryHtml).join(''));
         }
 
         offset += entries.length;
-        if (firstLoad && !total) total = offset;
+        lastBatch = entries.length;
         firstLoad = false;
         updateMoreButton();
       })
@@ -261,34 +361,32 @@
       html += '</div></div>';
     }
 
-    var reading = books.filter(function (b) { return b.status !== 'done'; }).slice(0, 5);
+    /* 在读 —— 字段是 title / notes（不是 author）。
+       进度条整体去掉：书籍数据里根本没有 progress 这个字段，
+       之前那根永远是 0% 的空条，纯属噪音。 */
+    var reading = books.filter(function (b) { return b.status !== 'done'; }).slice(0, 6);
     if (reading.length) {
-      html += '<div class="pub-section"><div class="pub-section-title">在读</div><div class="pub-goals">';
+      html += '<div class="pub-section"><div class="pub-section-title">在读</div><div class="pub-list">';
       reading.forEach(function (b) {
-        var p = clampPct(b.progress);
-        html += '<div class="pub-goal">' +
-          '<div class="pub-goal-head">' +
-            '<span class="pub-goal-name">' + esc(b.title || '未命名') + '</span>' +
-            '<span class="pub-goal-pct">' + p + '%</span>' +
+        html += '<div class="pub-row pub-row-dot">' +
+          '<div class="pub-row-main">' +
+            '<div class="pub-row-title">' + esc(b.title || '未命名') + '</div>' +
+            (b.notes ? '<div class="pub-row-sub">' + esc(b.notes) + '</div>' : '') +
           '</div>' +
-          (b.author ? '<div class="pub-goal-note">' + esc(b.author) + '</div>' : '') +
-          '<div class="pub-progress"><div class="pub-progress-bar" style="width:' + p + '%"></div></div>' +
         '</div>';
       });
       html += '</div></div>';
     }
 
+    /* 技能 —— 字段是 name / notes（之前错写成 note，备注一直读不出来） */
     if (skills.length) {
-      html += '<div class="pub-section"><div class="pub-section-title">技能</div><div class="pub-goals">';
-      skills.slice(0, 6).forEach(function (s) {
-        var p = clampPct(s.progress);
-        html += '<div class="pub-goal">' +
-          '<div class="pub-goal-head">' +
-            '<span class="pub-goal-name">' + esc(s.name || '未命名') + '</span>' +
-            '<span class="pub-goal-pct">' + p + '%</span>' +
+      html += '<div class="pub-section"><div class="pub-section-title">技能</div><div class="pub-list">';
+      skills.slice(0, 8).forEach(function (s) {
+        html += '<div class="pub-row pub-row-dot">' +
+          '<div class="pub-row-main">' +
+            '<div class="pub-row-title">' + esc(s.name || '未命名') + '</div>' +
+            (s.notes ? '<div class="pub-row-sub">' + esc(s.notes) + '</div>' : '') +
           '</div>' +
-          (s.note ? '<div class="pub-goal-note">' + esc(s.note) + '</div>' : '') +
-          '<div class="pub-progress"><div class="pub-progress-bar" style="width:' + p + '%"></div></div>' +
         '</div>';
       });
       html += '</div></div>';
@@ -306,7 +404,9 @@
     if (!body) return;
 
     var d = (doc && doc.data) || {};
-    var todayIdx = new Date().getDay();
+    var now = new Date();
+    var todayIdx = now.getDay();
+    var nowMin = now.getHours() * 60 + now.getMinutes();
     var html = '';
     var any = false;
 
@@ -318,17 +418,48 @@
       if (!slots.length) return;
       any = true;
 
-      html += '<div class="pub-day">' +
-        '<div class="pub-day-name' + (i === todayIdx ? ' today' : '') + '">' +
-          esc(DAY_NAMES[i]) + (i === todayIdx ? ' · 今天' : '') +
-        '</div>';
-      slots.forEach(function (s) {
-        html += '<div class="pub-slot-row">' +
+      /* 按时间排。没填时间的排最后（mins 返回 null） */
+      slots = slots.slice().sort(function (a, b) {
+        var ta = mins(a.time);
+        var tb = mins(b.time);
+        if (ta === tb) return 0;
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return ta - tb;
+      });
+
+      var isToday = (i === todayIdx);
+
+      /* 今天：第一个还没到的时段标「接下来」。
+         不去猜哪个时段"正在进行" —— 数据里没有时长，猜就是编。 */
+      var nextIdx = -1;
+      if (isToday) {
+        for (var k = 0; k < slots.length; k++) {
+          var t = mins(slots[k].time);
+          if (t !== null && t > nowMin) { nextIdx = k; break; }
+        }
+      }
+
+      html += '<div class="pub-day' + (isToday ? ' today' : '') + '">' +
+        '<div class="pub-day-head">' +
+          '<span class="pub-day-name">' + esc(DAY_NAMES[i]) + '</span>' +
+          (isToday ? '<span class="pub-day-badge">今天</span>' : '') +
+          '<span class="pub-day-count">' + slots.length + ' 项</span>' +
+        '</div>' +
+        '<div class="pub-slots">';
+
+      slots.forEach(function (s, k) {
+        var isNext = (k === nextIdx);
+        html += '<div class="pub-slot' + (isNext ? ' next' : '') + '">' +
           '<span class="pub-slot-time">' + esc(s.time || '') + '</span>' +
-          '<span>' + esc(s.activity || '') + '</span>' +
+          '<span class="pub-slot-rail"><i></i></span>' +
+          '<span class="pub-slot-text">' + esc(s.activity || '') +
+            (isNext ? '<span class="pub-slot-tag">接下来</span>' : '') +
+          '</span>' +
         '</div>';
       });
-      html += '</div>';
+
+      html += '</div></div>';
     });
 
     body.innerHTML = any ? html : stateHtml('还没有排日程');
@@ -339,19 +470,18 @@
      ========================================================= */
 
   function goalHtml(g) {
-    var p = g.done ? 100 : clampPct(g.progress);
     var note = [];
     if (g.note) note.push(g.note);
     if (g.deadline) note.push('截止 ' + g.deadline);
 
+    /* 目标的字段名是 title，不是 name —— 之前读错字段，页面上全是「未命名」。
+       进度条一并去掉：目标现在就只有「名字 + 备注 + 完成没完成」。 */
     return '<div class="pub-goal' + (g.done ? ' done' : '') + '">' +
-      '<div class="pub-goal-head">' +
-        '<span class="pub-goal-name">' + esc(g.name || '未命名') + '</span>' +
-        '<span class="pub-goal-pct">' + (g.done ? '已完成' : p + '%') + '</span>' +
+      '<span class="pub-goal-mark' + (g.done ? ' done' : '') + '">' + (g.done ? '✓' : '') + '</span>' +
+      '<div class="pub-goal-main">' +
+        '<div class="pub-goal-name">' + esc(g.title || '未命名') + '</div>' +
+        (note.length ? '<div class="pub-goal-note">' + esc(note.join(' · ')) + '</div>' : '') +
       '</div>' +
-      (note.length ? '<div class="pub-goal-note">' + esc(note.join(' · ')) + '</div>' : '') +
-      '<div class="pub-progress"><div class="pub-progress-bar' + (g.done ? ' done' : '') +
-        '" style="width:' + p + '%"></div></div>' +
     '</div>';
   }
 
@@ -494,6 +624,13 @@
 
     var more = document.getElementById('pub-more');
     if (more) more.addEventListener('click', loadDiary);
+
+    /* 筛选条每次都整块重建，所以监听挂在容器上（委托），不跟着重建丢 */
+    var filter = document.getElementById('pub-filter');
+    if (filter) {
+      filter.addEventListener('change', onFilterChange);
+      filter.addEventListener('click', onFilterClick);
+    }
 
     loadDiary();
   });
