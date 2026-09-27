@@ -17,7 +17,6 @@ const App = {
 
   init() {
     /* 初始化各模块 */
-    Diary.init();
     Settings.init();
 
     /* 更新日期显示 */

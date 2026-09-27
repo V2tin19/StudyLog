@@ -132,13 +132,14 @@ const Study = {
     });
   },
 
-  /* 勾选完成 / 取消归档 */
+  /* 勾选完成 / 取消归档（局部刷新，不整页重载） */
   toggleBookDone(id) {
     const book = Store.getItem(this.BOOKS_KEY, id);
     if (book) {
       book.status = book.status === 'done' ? 'reading' : 'done';
       Store.updateItem(this.BOOKS_KEY, id, book);
-      App.refresh();
+      const el = document.getElementById('study-book-list');
+      if (el) el.innerHTML = this.renderBooks();
     }
   },
 
@@ -156,20 +157,20 @@ const Study = {
     return Store.updateItem(this.SKILLS_KEY, id, data);
   },
 
-  /* 勾选完成 / 取消归档 */
+  /* 勾选完成 / 取消归档（局部刷新，不整页重载） */
   toggleSkillDone(id) {
     const skill = Store.getItem(this.SKILLS_KEY, id);
     if (skill) {
       skill.status = skill.status === 'done' ? 'active' : 'done';
       Store.updateItem(this.SKILLS_KEY, id, skill);
-      App.refresh();
+      const el = document.getElementById('study-skill-list');
+      if (el) el.innerHTML = this.renderSkills();
     }
   },
 
   /* ---- 渲染 ---- */
   renderStudyPage(container) {
     const today = Utils.today();
-    const monthDuration = this.getDurationByMonth(today);
 
     container.innerHTML = `
       <div class="card mb-16">
@@ -180,7 +181,6 @@ const Study = {
         <div id="study-sessions">
           ${this.renderSessionList()}
         </div>
-        <div class="text-sm text-muted mt-8">本月累计 ${this.formatDuration(monthDuration)}</div>
       </div>
       <div class="card-grid card-grid-2 study-cols">
         <div class="card">

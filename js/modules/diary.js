@@ -1,30 +1,11 @@
 /* ============================================
-   Diary - 每日日记 / 生活打卡模块
-   包含日志、心情、复盘、便签、日历
+   Diary - 每日日记模块
+   写日记、今日列表、月历浏览
    ============================================ */
 
 const Diary = {
   STORAGE_KEY: 'diary_entries',
   MOOD_KEY: 'diary_moods',
-  NOTES_KEY: 'diary_notes',
-  TEMPLATE_KEY: 'diary_template',
-
-  moods: [
-    { label: '开心', value: 'happy' },
-    { label: '平淡', value: 'neutral' },
-    { label: '疲惫', value: 'tired' },
-    { label: '焦虑', value: 'anxious' },
-    { label: '充实', value: 'fulfilled' },
-    { label: '难过', value: 'sad' },
-    { label: '烦躁', value: 'irritated' },
-    { label: '兴奋', value: 'excited' }
-  ],
-
-  init() {
-    if (!Store.get(this.TEMPLATE_KEY)) {
-      Store.set(this.TEMPLATE_KEY, '今日完成：\n今日不足：\n明日计划：');
-    }
-  },
 
   /* 获取某日日记 */
   getEntry(dateStr) {
@@ -55,15 +36,6 @@ const Diary = {
     return true;
   },
 
-  /* 切换置顶 */
-  togglePin(dateStr) {
-    const entry = this.getEntry(dateStr);
-    if (entry) {
-      entry.pinned = !entry.pinned;
-      Store.setDate(this.STORAGE_KEY, dateStr, entry);
-    }
-  },
-
   /* 所有有内容的日期 */
   getActiveDates() {
     return Store.getDateKeys(this.STORAGE_KEY).filter(d => {
@@ -82,7 +54,7 @@ const Diary = {
     }).map(d => Store.getDate(this.STORAGE_KEY, d));
   },
 
-  /* ---- 心情 ---- */
+  /* ---- 情绪数据（保留历史记录，供仪表盘曲线） ---- */
   setMood(dateStr, moodVal) {
     Store.setDate(this.MOOD_KEY, dateStr, moodVal);
   },
@@ -96,57 +68,56 @@ const Diary = {
     return keys.map(k => ({ date: k, mood: Store.getDate(this.MOOD_KEY, k) }));
   },
 
-  getMoodLabel(moodVal) {
-    const m = this.moods.find(m => m.value === moodVal);
-    return m ? m.label : '';
-  },
-
-  /* ---- 便签 ---- */
-  getNotes() {
-    return Store.getList(this.NOTES_KEY);
-  },
-
-  addNote(text) {
-    return Store.addItem(this.NOTES_KEY, { text, pinned: false });
-  },
-
-  deleteNote(id) {
-    return Store.removeItem(this.NOTES_KEY, id);
-  },
-
-  /* ---- 复盘模板 ---- */
-  getTemplate() {
-    return Store.get(this.TEMPLATE_KEY, '今日完成：\n今日不足：\n明日计划：');
-  },
-
-  setTemplate(tpl) {
-    Store.set(this.TEMPLATE_KEY, tpl);
-  },
-
   /* ---- 渲染 ---- */
   renderDiaryPage(container) {
     const today = Utils.today();
-    /* 使用全局 Calendar 状态 */
     container.innerHTML = `
-      <div class="card mb-16">
+      <div class="card mb-16 text-center">
+        <button class="btn btn-primary" style="padding:12px 40px;font-size:1rem;border-radius:var(--radius-lg);" onclick="Diary.showEditor('${today}')">写日记</button>
+      </div>
+      <div id="diary-today-list"></div>
+      <div class="card">
         <div class="card-title">
-          <span>日记</span>
-          <div class="flex gap-8">
-            <button class="btn btn-sm btn-secondary" onclick="Diary.showSearch()">搜索</button>
-            <button class="btn btn-sm btn-secondary" onclick="Diary.showNotes()">便签</button>
-          </div>
-        </div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-          <button class="btn btn-sm btn-primary" onclick="Diary.showEditor('${today}')">写日记</button>
-          <button class="btn btn-sm btn-secondary" onclick="Diary.showReviewEditor('${today}')">今日复盘</button>
+          <span>日记月历</span>
+          <button class="btn btn-sm btn-secondary" onclick="Diary.showSearch()">搜索</button>
         </div>
         <div id="diary-calendar"></div>
       </div>
-      <div id="diary-entry-list"></div>
     `;
 
+    this.renderTodayList(document.getElementById('diary-today-list'));
     this.renderCalendar(document.getElementById('diary-calendar'), today);
-    this.renderEntryList(document.getElementById('diary-entry-list'));
+  },
+
+  /* 今日日记列表（只呈现当日） */
+  renderTodayList(container) {
+    const today = Utils.today();
+    const entry = this.getEntry(today);
+    if (!entry || !entry.content) {
+      container.innerHTML = `
+        <div class="card mb-16">
+          <div class="card-title"><span>日记列表</span></div>
+          <div class="empty-state-text">今天还没有写日记</div>
+        </div>
+      `;
+      return;
+    }
+    const preview = entry.content.replace(/<[^>]*>/g, '').slice(0, 120);
+    container.innerHTML = `
+      <div class="card mb-16">
+        <div class="card-title"><span>日记列表</span></div>
+        <div class="list-item">
+          <div class="list-item-main" onclick="Diary.showEditor('${today}')" style="cursor:pointer;">
+            <div class="list-item-title">${today}</div>
+            <div class="list-item-sub">${preview || '(空)'}</div>
+          </div>
+          <div class="list-item-actions">
+            <button class="btn btn-sm btn-secondary" onclick="Diary.showEditor('${today}')">编辑</button>
+            <button class="btn btn-sm btn-danger" onclick="Diary.deleteEntry('${today}').then(()=>App.refresh())">删除</button>
+          </div>
+        </div>
+      </div>
+    `;
   },
 
   _calMonth: null,
@@ -218,54 +189,12 @@ const Diary = {
   },
 
   onDayClick(dateStr) {
-    const entry = this.getEntry(dateStr);
-    if (entry && entry.content) {
-      this.showEditor(dateStr);
-    } else {
-      this.showEditor(dateStr);
-    }
-  },
-
-  renderEntryList(container) {
-    const dates = this.getActiveDates();
-    const pinned = dates.filter(d => { const e = Store.getDate(this.STORAGE_KEY, d); return e && e.pinned; });
-    const normal = dates.filter(d => !pinned.includes(d));
-
-    if (dates.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-text">还没有日记，点击日期开始记录吧</div></div>';
-      return;
-    }
-
-    let html = '<div class="card"><div class="card-title"><span>日记列表</span></div>';
-    [...pinned, ...normal].forEach(d => {
-      const entry = Store.getDate(this.STORAGE_KEY, d);
-      if (!entry || !entry.content) return;
-      const preview = entry.content.replace(/<[^>]*>/g, '').slice(0, 60);
-      const moodLabel = entry.mood ? this.getMoodLabel(entry.mood) : '';
-      html += `
-        <div class="list-item">
-          <div class="list-item-main" onclick="Diary.showEditor('${d}')" style="cursor:pointer;">
-            <div class="list-item-title">${entry.pinned ? '置顶 · ' : ''}${d} ${moodLabel}</div>
-            <div class="list-item-sub">${preview || '(空)'}</div>
-          </div>
-          <div class="list-item-actions">
-            <button class="btn btn-sm btn-secondary" onclick="Diary.togglePin('${d}');App.refresh()">${entry.pinned ? '取消置顶' : '置顶'}</button>
-            <button class="btn btn-sm btn-danger" onclick="Diary.deleteEntry('${d}').then(()=>App.refresh())">删除</button>
-          </div>
-        </div>
-      `;
-    });
-    html += '</div>';
-    container.innerHTML = html;
+    this.showEditor(dateStr);
   },
 
   showEditor(dateStr) {
-    const entry = this.getEntry(dateStr) || { content: '', mood: '', review: '', images: [] };
+    const entry = this.getEntry(dateStr) || { content: '', images: [] };
     const container = document.getElementById('page-container');
-    const moodOptions = this.moods.map(m =>
-      `<button class="mood-btn${entry.mood === m.value ? ' selected' : ''}" data-mood="${m.value}" onclick="Diary.selectMood('${m.value}')">${m.label}</button>`
-    ).join('');
-
     container.innerHTML = `
       <div class="card page-enter">
         <div class="card-title">
@@ -273,18 +202,8 @@ const Diary = {
           <button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button>
         </div>
         <div class="form-group">
-          <label class="form-label">今日心情</label>
-          <div class="mood-selector" id="mood-selector">
-            ${moodOptions}
-          </div>
-        </div>
-        <div class="form-group">
           <label class="form-label">日记内容</label>
-          <textarea class="textarea" id="diary-content" rows="8" placeholder="记录今天的点点滴滴…">${entry.content || ''}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">每日复盘</label>
-          <textarea class="textarea" id="diary-review" rows="4" placeholder="今日复盘…">${entry.review || ''}</textarea>
+          <textarea class="textarea" id="diary-content" rows="10" placeholder="记录今天的点点滴滴…">${entry.content || ''}</textarea>
         </div>
         <div class="form-group">
           <label class="form-label">图片</label>
@@ -308,7 +227,7 @@ const Diary = {
         files.forEach(f => {
           const reader = new FileReader();
           reader.onload = function(e) {
-            const entry = Diary.getEntry(dateStr) || { content: '', mood: '', review: '', images: [] };
+            const entry = Diary.getEntry(dateStr) || { content: '', images: [] };
             entry.images = entry.images || [];
             entry.images.push(e.target.result);
             Diary.saveEntry(dateStr, entry);
@@ -329,50 +248,9 @@ const Diary = {
     }
   },
 
-  _selectedMood: null,
-  selectMood(val) {
-    this._selectedMood = val;
-    document.querySelectorAll('.mood-btn').forEach(b => {
-      b.classList.toggle('selected', b.dataset.mood === val);
-    });
-  },
-
   saveEditor(dateStr) {
     const content = document.getElementById('diary-content')?.value || '';
-    const review = document.getElementById('diary-review')?.value || '';
-    const mood = this._selectedMood || Store.getDate(this.MOOD_KEY, dateStr) || '';
-    this.saveEntry(dateStr, { content, mood, review });
-    if (mood) this.setMood(dateStr, mood);
-    this._selectedMood = null;
-    App.refresh();
-  },
-
-  showReviewEditor(dateStr) {
-    const entry = this.getEntry(dateStr) || { content: '', mood: '', review: '', images: [] };
-    const tpl = this.getTemplate();
-    const container = document.getElementById('page-container');
-    container.innerHTML = `
-      <div class="card page-enter">
-        <div class="card-title">
-          <span>${dateStr} 复盘</span>
-          <button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button>
-        </div>
-        <div class="form-group">
-          <label class="form-label">复盘内容</label>
-          <textarea class="textarea" id="review-content" rows="8" placeholder="今日复盘…">${entry.review || tpl}</textarea>
-        </div>
-        <div class="flex gap-8 mt-16">
-          <button class="btn btn-primary" onclick="Diary.saveReview('${dateStr}')">保存</button>
-          <button class="btn btn-secondary" onclick="App.refresh()">取消</button>
-        </div>
-      </div>
-    `;
-  },
-
-  saveReview(dateStr) {
-    const review = document.getElementById('review-content')?.value || '';
-    const entry = this.getEntry(dateStr) || { content: '', mood: '', images: [] };
-    this.saveEntry(dateStr, { ...entry, review });
+    this.saveEntry(dateStr, { content });
     App.refresh();
   },
 
@@ -415,50 +293,7 @@ const Diary = {
     results.innerHTML = html;
   },
 
-  showNotes() {
-    const container = document.getElementById('page-container');
-    const notes = this.getNotes();
-    container.innerHTML = `
-      <div class="card page-enter">
-        <div class="card-title">
-          <span>随手便签</span>
-          <button class="btn btn-sm btn-secondary" onclick="App.refresh()">← 返回</button>
-        </div>
-        <div class="flex gap-8 mb-16">
-          <input class="input" id="note-input" placeholder="输入便签内容…" onkeydown="if(event.key==='Enter')Diary.addNoteBtn()">
-          <button class="btn btn-primary" onclick="Diary.addNoteBtn()">添加</button>
-        </div>
-        <div id="note-list">
-          ${notes.length === 0 ? '<div class="empty-state-text">暂无便签</div>' :
-            notes.map(n => `
-              <div class="note-card mb-8">
-                <button class="note-close" onclick="Diary.deleteNoteBtn('${n.id}')">×</button>
-                <div class="note-text">${n.text}</div>
-                <div class="note-time">${Utils.formatDateTime(n.createdAt)}</div>
-              </div>
-            `).join('')}
-        </div>
-      </div>
-    `;
-  },
-
-  addNoteBtn() {
-    const input = document.getElementById('note-input');
-    if (input && input.value.trim()) {
-      this.addNote(input.value.trim());
-      input.value = '';
-      this.showNotes();
-    }
-  },
-
-  async deleteNoteBtn(id) {
-    if (await Utils.confirm('删除此便签？')) {
-      this.deleteNote(id);
-      this.showNotes();
-    }
-  },
-
-  /* 获取情绪数据用于图表 */
+  /* 获取情绪数据用于仪表盘图表 */
   getMoodChartData() {
     const list = this.getMoodList().slice(-30);
     const moodValues = { happy: 4, excited: 5, fulfilled: 4, neutral: 3, tired: 2, anxious: 1, sad: 1, irritated: 1 };

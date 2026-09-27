@@ -94,7 +94,6 @@ const Dashboard = {
       <div class="card mb-16">
         <div class="card-title"><span>快捷入口</span></div>
         <div class="flex gap-12" style="flex-wrap:wrap;">
-          <button class="btn btn-secondary" onclick="Diary.showNotes()">便签</button>
           <button class="btn btn-secondary" onclick="Diary.showSearch()">搜索日记</button>
           <button class="btn btn-secondary" onclick="Study.showAddSession()">记录学习</button>
           <button class="btn btn-secondary" onclick="App.navigate('settings')">设置</button>

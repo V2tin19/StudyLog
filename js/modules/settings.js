@@ -71,7 +71,6 @@ const Settings = {
     const diaryCount = Diary.getActiveDates().length;
     const studyCount = Study.getSessions().length;
     const goalCount = Extras.getGoals().filter(g => !g.done).length;
-    const noteCount = Diary.getNotes().length;
 
     container.innerHTML = `
       <div class="card-grid card-grid-2 mb-16">
@@ -99,11 +98,10 @@ const Settings = {
       </div>
       <div class="card mb-16">
         <div class="card-title"><span>数据统计</span></div>
-        <div class="card-grid card-grid-4">
+        <div class="card-grid card-grid-3">
           <div class="stat-card"><div class="stat-value">${diaryCount}</div><div class="stat-label">日记</div></div>
           <div class="stat-card"><div class="stat-value">${studyCount}</div><div class="stat-label">学习记录</div></div>
           <div class="stat-card"><div class="stat-value">${goalCount}</div><div class="stat-label">进行中目标</div></div>
-          <div class="stat-card"><div class="stat-value">${noteCount}</div><div class="stat-label">便签</div></div>
         </div>
         <div class="text-sm text-muted mt-8">本地存储占用：${storageSize}</div>
       </div>
