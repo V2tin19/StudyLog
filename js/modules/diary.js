@@ -26,13 +26,25 @@ const Diary = {
       updatedAt: new Date().toISOString()
     };
     Store.setDate(this.STORAGE_KEY, dateStr, updated);
+
+    /* 自动同步：写完就传云端，不再需要手动点「发布」。
+       Sync 是「本地缓存 + 写穿云端」，这里同步写完缓存就走，
+       上传在后台异步进行，不阻塞界面。 */
+    if (typeof Sync !== 'undefined' && Sync.onSaved) Sync.onSaved(dateStr);
+
     return updated;
   },
 
   /* 删除日记 */
   async deleteEntry(dateStr) {
-    if (!await Utils.confirm('确定删除此日记？')) return false;
+    const willSync = (typeof Sync !== 'undefined' && Sync.canSync && Sync.canSync());
+    const tip = willSync
+      ? '确定删除此日记？云端那一份也会一起删掉。'
+      : '确定删除此日记？';
+    if (!await Utils.confirm(tip)) return false;
+
     Store.setDate(this.STORAGE_KEY, dateStr, null);
+    if (typeof Sync !== 'undefined' && Sync.onDeleted) Sync.onDeleted(dateStr);
     return true;
   },
 

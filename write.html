@@ -32,6 +32,14 @@
     .lock-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; }
     .lock-link { font-size: 0.76rem; color: var(--text-muted); cursor: pointer; }
     .lock-link:hover { color: var(--accent-blue); }
+
+    /* 云端同步状态徽标：平时很小，只在出错时变红且可点击重试 */
+    .sync-badge {
+      display: none; font-size: 0.72rem; line-height: 1;
+      padding: 5px 10px; border-radius: 999px;
+      border: 1px solid var(--border-light);
+      white-space: nowrap; user-select: none;
+    }
   </style>
   <script>
     /* 关键：在页面渲染前就判断，避免已登录的人看见锁屏闪一下 */
@@ -73,6 +81,7 @@
       <h1 class="app-title" id="page-title">时间线</h1>
     </div>
     <div class="header-right">
+      <span class="sync-badge" id="sync-badge"></span>
       <span class="header-date" id="header-date"></span>
       <button id="theme-toggle" class="icon-btn" aria-label="切换主题">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -95,7 +104,7 @@
       <li><a href="#/settings" class="nav-item" data-page="settings"><span class="nav-label">设置</span></a></li>
     </ul>
     <div class="sidebar-footer">
-      <span class="version">v1.0 · 纯本地</span>
+      <span class="version">v1.1 · 云端同步</span>
     </div>
   </nav>
 
@@ -142,6 +151,7 @@
   <script src="js/modules/dashboard.js"></script>
   <script src="js/modules/settings.js"></script>
   <script src="js/modules/cloud.js"></script>
+  <script src="js/modules/sync.js"></script>
   <script src="js/modules/extras.js"></script>
   <script src="js/lock.js"></script>
   <script src="js/app.js"></script>

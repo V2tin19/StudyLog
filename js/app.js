@@ -136,5 +136,10 @@ const App = {
 
 /* ---- 应用启动 ---- */
 document.addEventListener('DOMContentLoaded', () => {
+  /* 先按本地缓存渲染，界面立刻可用 */
   App.init();
+
+  /* 再后台跟云端对一次：拉回别处写的、补传本地新写的。
+     不 await —— 网络慢的时候不能让打开页面卡住。 */
+  if (typeof Sync !== 'undefined' && Sync.boot) Sync.boot();
 });

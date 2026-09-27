@@ -72,6 +72,13 @@ const Settings = {
     const studyCount = Study.getSessions().length;
     const goalCount = Extras.getGoals().filter(g => !g.done).length;
 
+    /* 同步状态快照（Sync 万一没加载也要能渲染出页面） */
+    const syncInfo = (typeof Sync !== 'undefined')
+      ? Sync.info()
+      : { enabled: false, message: '' };
+    const syncOn = syncInfo.enabled;
+    const syncStatusText = () => syncInfo.message || '';
+
     container.innerHTML = `
       <div class="card-grid card-grid-2 mb-16">
         <div class="card">
@@ -98,14 +105,26 @@ const Settings = {
       </div>
       <div class="card mb-16">
         <div class="card-title"><span>云端同步</span></div>
-        <div class="text-sm text-muted" style="line-height:1.8;margin-bottom:12px;">
-          把本地写的日记发布到你自己的网站上，朋友通过公开页就能看到。<br>
+
+        <div class="flex items-center justify-between" style="gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+          <div style="min-width:0;">
+            <div class="font-bold">自动同步${syncOn ? '' : '（已关闭）'}</div>
+            <div class="text-sm text-muted" style="margin-top:4px;line-height:1.7;">
+              开启后，写完保存就直接同步到你的站点，朋友刷新就能看到，不用再点「发布」。<br>
+              关掉的话，改动只留在本机浏览器里。
+            </div>
+          </div>
+          <button class="btn ${syncOn ? 'btn-primary' : 'btn-secondary'}" id="sync-toggle" onclick="Sync.toggle()">
+            ${syncOn ? '已开启' : '已关闭'}
+          </button>
+        </div>
+
+        <div class="text-sm text-muted" style="line-height:1.8;margin-bottom:14px;">
+          朋友访问站点根地址 <code>/</code> 看到的是只读公开页；<br>
+          你现在所在的写作台是 <code>/write</code>，这个地址只自己留着。<br>
           写入权限由服务器校验令牌，别人没有令牌就改不了你的内容。
         </div>
-        <div class="text-sm text-muted" style="line-height:1.8;margin-bottom:12px;">
-          部署后：朋友访问站点根地址 <code>/</code> 看到的是只读公开页；<br>
-          你现在所在的写作台是 <code>/write</code>，这个地址只自己留着。
-        </div>
+
         <div class="form-group">
           <label class="form-label">管理令牌</label>
           <input class="input" id="cloud-token" type="password" autocomplete="off"
@@ -115,10 +134,11 @@ const Settings = {
         <div class="flex gap-8" style="flex-wrap:wrap;">
           <button class="btn btn-secondary" id="cloud-btn-save" onclick="Cloud.handleSaveToken()">保存令牌</button>
           <button class="btn btn-secondary" id="cloud-btn-verify" onclick="Cloud.handleVerify()">测试连接</button>
-          <button class="btn btn-primary" id="cloud-btn-publish" onclick="Cloud.handlePublish()">发布到云端</button>
+          <button class="btn btn-primary" id="cloud-btn-sync" onclick="Sync.handleManualPull()">立即同步</button>
+          <button class="btn btn-secondary" id="cloud-btn-publish" onclick="Cloud.handlePublish()">全部重传一次</button>
           <a class="btn btn-secondary" href="index.html" target="_blank" rel="noopener">查看公开页</a>
         </div>
-        <div id="cloud-status" class="text-sm mt-8"></div>
+        <div id="cloud-status" class="text-sm mt-8">${syncStatusText()}</div>
       </div>
       <div class="card mb-16">
         <div class="card-title"><span>数据统计</span></div>
@@ -132,13 +152,13 @@ const Settings = {
       <div class="card">
         <div class="card-title"><span>关于本站</span></div>
         <div class="text-sm" style="line-height:1.8;">
-          <p><strong>StudyLog</strong> · 个人日常记录 v1.0</p>
+          <p><strong>StudyLog</strong> · 个人日常记录 v1.1</p>
           <p>一款轻量化个人日常记录 Web 网站</p>
           <p>专注服务个人记录、生活留存、数据复盘</p>
-          <p class="mt-8">平时写作完全在本地浏览器，不联网也能用</p>
-          <p>只有你主动点「发布到云端」时，日记才会同步到你自己的站点</p>
+          <p class="mt-8">日记以云端为准：打开写作台自动读取，写完保存自动上传</p>
+          <p>本机留一份缓存，断网也能打开和写，联网后自动补传</p>
           <p>公开页是只读的，别人无法修改你的内容</p>
-          <p>纯前端静态页面，可离线使用</p>
+          <p>图片目前只存在本机，还没同步到云端</p>
         </div>
       </div>
     `;
