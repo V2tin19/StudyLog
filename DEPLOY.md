@@ -43,12 +43,50 @@
 2. 左侧菜单找 **「存储和数据库」**（Storage & Databases）→ **「D1 SQL 数据库」**
 3. 点 **「创建数据库」**，名字填 `studylog-db`，创建
 4. 进入这个数据库，点 **「Console」**（控制台）标签
-5. 打开项目里的 `schema.sql`，**把里面全部内容复制**，粘贴到 Console 的输入框
-6. 点 **「执行 / Execute」**
+5. 打开项目里的 `schema.sql`。这个文件**一行就是一条完整语句、不含任何注释**（这是故意的，见下面说明）
+6. 先尝试**整段复制粘贴**到输入框，点 **「执行 / Execute」**
 
-执行完应该看到类似 `2 rows returned` 的提示。这说明 `diary`（日记表）和 `site_meta`（站点信息表）建好了。
+成功的标志：最后会返回一张表名列表，里面有 `diary` 和 `site_meta`。
 
 > 这一步可以重复执行，不会报错也不会删掉已有日记。
+
+### 如果报错「Requests without any query are not supported」
+
+意思是**控制台没收到任何可执行的语句**，SQL 本身没问题。原因是这个输入框很有可能是**单行输入**式的 —— 多行文本粘进去只会保留第一行；而如果第一行恰好是注释（`--` 开头），服务器就收到一个空查询。
+
+`schema.sql` 已经改成防这个坑的格式了。如果整段粘贴仍然不行，就**一条一条粘、一条一条执行**，顺序照抄即可：
+
+```sql
+CREATE TABLE IF NOT EXISTS diary (date TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', mood TEXT NOT NULL DEFAULT '', review TEXT NOT NULL DEFAULT '', images TEXT NOT NULL DEFAULT '[]', pinned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '');
+```
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_diary_order ON diary(pinned DESC, date DESC);
+```
+
+```sql
+CREATE TABLE IF NOT EXISTS site_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
+```
+
+```sql
+INSERT OR IGNORE INTO site_meta (key, value) VALUES ('site_title', '我的学习记录');
+```
+
+```sql
+INSERT OR IGNORE INTO site_meta (key, value) VALUES ('owner_name', '果冻');
+```
+
+```sql
+INSERT OR IGNORE INTO site_meta (key, value) VALUES ('announcement', '');
+```
+
+**自查**，看看表建好没：
+
+```sql
+SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;
+```
+
+应该返回两行：`diary`、`site_meta`（外加 SQLite 自己的内部表，属正常）。
 
 ---
 
@@ -150,6 +188,12 @@ crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-','')
 
 ## 常见问题
 
+**执行 `schema.sql` 时报「Requests without any query are not supported」**
+控制台没收到可执行语句，不是 SQL 写错了。原因通常是输入框只保留了粘贴内容的第一行，而第一行是注释。解决办法见第一步下面的说明：改成一**条一条粘、一条一条执行**。
+
+**执行 `schema.sql` 时只成功了一部分（比如只有 diary 表）**
+同一个原因 —— 多行内容被截断了。把第一步里六条语句逐条重新执行一遍即可，`IF NOT EXISTS` 和 `INSERT OR IGNORE` 保证重复执行不会出问题。
+
 **发布时提示「服务端还没有设置 ADMIN_TOKEN 环境变量」**
 环境变量没配，或者配了但没重新部署。回到第四步 + 第五步。
 
@@ -192,7 +236,7 @@ crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-','')
 
 | 文件 | 作用 |
 |------|------|
-| `schema.sql` | 数据库建表语句 |
+| `schema.sql` | 数据库建表语句（**一行一条、无注释**，为兼容 D1 控制台的输入框格式） |
 | `view.html` | 公开只读页 |
 | `js/public-site.js` | 公开页的渲染逻辑 |
 | `js/modules/cloud.js` | 写作台里的「发布到云端」模块 |
