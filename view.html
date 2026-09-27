@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f0eb">
+  <meta name="robots" content="noindex">
+  <title>我的学习记录</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect x=%2215%22 y=%2210%22 width=%2270%22 height=%2280%22 rx=%2212%22 fill=%22%23f5f0eb%22 stroke=%22%237ba4c7%22 stroke-width=%228%22/><line x1=%2235%22 y1=%2238%22 x2=%2265%22 y2=%2238%22 stroke=%22%237ba4c7%22 stroke-width=%228%22 stroke-linecap=%22round%22/><line x1=%2235%22 y1=%2256%22 x2=%2265%22 y2=%2256%22 stroke=%22%237ba4c7%22 stroke-width=%228%22 stroke-linecap=%22round%22/><line x1=%2235%22 y1=%2274%22 x2=%2255%22 y2=%2274%22 stroke=%22%237ba4c7%22 stroke-width=%228%22 stroke-linecap=%22round%22/></svg>">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* 公开只读页的独立版式，只复用 style.css 里的主题变量 */
+    .pub-header {
+      position: sticky; top: 0; z-index: 50;
+      height: var(--nav-height);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-light);
+    }
+    .pub-brand { font-size: 1rem; font-weight: 600; letter-spacing: 0.02em; }
+    .pub-brand span { color: var(--accent-blue); }
+    .pub-main { max-width: 720px; margin: 0 auto; padding: 28px 20px 56px; }
+
+    .pub-intro { margin-bottom: 24px; }
+    .pub-intro h1 { font-size: 1.35rem; font-weight: 600; line-height: 1.5; }
+    .pub-intro p { font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; }
+
+    .pub-hero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 32px; }
+    .pub-stat {
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg); padding: 16px 8px; text-align: center;
+    }
+    .pub-stat-value { font-size: 1.45rem; font-weight: 600; color: var(--accent-blue); line-height: 1.3; }
+    .pub-stat-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+    .pub-timeline { position: relative; padding-left: 26px; }
+    .pub-timeline::before {
+      content: ''; position: absolute; left: 6px; top: 10px; bottom: 10px;
+      width: 1px; background: var(--border-color);
+    }
+    .pub-entry { position: relative; margin-bottom: 22px; }
+    .pub-entry::before {
+      content: ''; position: absolute; left: -26px; top: 22px;
+      width: 13px; height: 13px; border-radius: 50%;
+      background: var(--bg-primary); border: 2px solid var(--accent-blue);
+    }
+    .pub-entry.pinned::before { border-color: var(--accent-orange); }
+
+    .pub-card {
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg); padding: 18px 20px;
+      box-shadow: var(--shadow-sm); transition: box-shadow var(--transition);
+    }
+    .pub-card:hover { box-shadow: var(--shadow-md); }
+    .pub-card-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .pub-date { font-size: 1rem; font-weight: 600; }
+    .pub-weekday { font-size: 0.78rem; color: var(--text-muted); }
+    .pub-pin { font-size: 0.7rem; color: var(--accent-orange); border: 1px solid var(--accent-orange); border-radius: 999px; padding: 1px 8px; }
+    .pub-mood { font-size: 0.72rem; border: 1px solid currentColor; border-radius: 999px; padding: 1px 9px; }
+    .pub-content { margin-top: 12px; font-size: 0.92rem; line-height: 1.85; white-space: pre-wrap; word-break: break-word; }
+    .pub-review {
+      margin-top: 14px; padding: 11px 13px; background: var(--bg-tertiary);
+      border-radius: var(--radius-md); font-size: 0.85rem; line-height: 1.75;
+      white-space: pre-wrap; word-break: break-word; color: var(--text-secondary);
+    }
+    .pub-review-tag { display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px; }
+    .pub-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 14px; }
+    .pub-images img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border-light); }
+
+    .pub-state { text-align: center; padding: 48px 16px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.9; }
+    .pub-state strong { display: block; color: var(--text-secondary); font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
+
+    .pub-more-wrap { text-align: center; margin-top: 28px; }
+    .pub-more {
+      padding: 10px 26px; border-radius: 999px; font-size: 0.85rem;
+      background: var(--bg-card); color: var(--text-secondary);
+      border: 1px solid var(--border-color); transition: all var(--transition);
+    }
+    .pub-more:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
+    .pub-more:disabled { opacity: 0.5; cursor: default; }
+
+    .pub-footer { max-width: 720px; margin: 0 auto; padding: 0 20px 56px; text-align: center; font-size: 0.76rem; color: var(--text-muted); line-height: 1.9; }
+    .pub-footer a { color: var(--accent-blue); }
+
+    @media (max-width: 460px) {
+      .pub-stat { padding: 13px 4px; }
+      .pub-stat-value { font-size: 1.2rem; }
+      .pub-main { padding: 20px 16px 48px; }
+      .pub-card { padding: 15px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="pub-header">
+    <div class="pub-brand">Study<span>Log</span></div>
+    <button id="theme-toggle" class="icon-btn" aria-label="切换主题">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </header>
+
+  <main class="pub-main">
+    <section class="pub-intro">
+      <h1 id="pub-title">我的学习记录</h1>
+      <p>每天写下一点，留给以后的自己看。</p>
+    </section>
+
+    <section class="pub-hero" id="pub-hero"></section>
+
+    <div id="pub-timeline" class="pub-timeline"></div>
+
+    <div class="pub-more-wrap hidden" id="pub-more-wrap">
+      <button class="pub-more" id="pub-more">加载更早的记录</button>
+    </div>
+  </main>
+
+  <footer class="pub-footer">
+    <div>这里只读展示，由我本人更新 · 评论功能还在做</div>
+  </footer>
+
+  <script src="js/public-site.js"></script>
+</body>
+</html>

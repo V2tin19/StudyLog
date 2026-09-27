@@ -2,7 +2,11 @@
 
 一款轻量化个人日常记录 Web 网站，主打 **生活化记录、每日复盘、学习管理、日程规划** 四大核心体系。全程无社交、无广告、无推荐信息流，专注服务个人记录留存、数据复盘。
 
-> 纯前端静态页面，数据完全存储在本地浏览器，无需联网、无需注册、无需后端。
+> **两种模式**
+> - **写作台**（`/`）：数据存在本地浏览器，离线可用，是唯一的「原件」
+> - **公开页**（`/view`）：只读，发布后朋友可以浏览你的日记
+>
+> 权限由服务端校验令牌，别人改不了你的内容。部署方法见 **[DEPLOY.md](DEPLOY.md)**。
 
 ---
 
@@ -65,8 +69,11 @@
 ## 目录结构
 
 ```
-daily-tracker/
-├── index.html              # 单页应用入口
+StudyLog/
+├── index.html              # 写作台入口（SPA，本地模式）
+├── view.html               # 公开只读页（给朋友看）
+├── schema.sql              # D1 数据库建表语句
+├── DEPLOY.md               # 部署到 Cloudflare 的完整手册
 ├── robots.txt              # 搜索引擎爬虫配置
 ├── .gitignore
 ├── LICENSE                 # MIT 开源协议
@@ -77,6 +84,7 @@ daily-tracker/
 │
 ├── js/
 │   ├── app.js              # 主控制器 & Hash 路由
+│   ├── public-site.js      # 公开页渲染逻辑
 │   └── modules/
 │       ├── storage.js      # LocalStorage 统一 CRUD
 │       ├── utils.js        # 工具函数（日期、DOM、SVG 图表）
@@ -84,10 +92,17 @@ daily-tracker/
 │       ├── study.js        # 学习 / 任务 / 书籍 / 技能 / 计时
 │       ├── dashboard.js    # 仪表盘数据聚合 / 图表渲染
 │       ├── extras.js       # 日程表 / 目标清单
-│       └── settings.js     # 主题 / 备份 / 数据管理
+│       ├── settings.js     # 主题 / 备份 / 数据管理 / 云端同步入口
+│       └── cloud.js        # 发布到云端（D1 同步）
 │
-└── assets/
-    └── icons/              # 预留图标目录
+└── functions/              # Cloudflare Pages Functions（后端）
+    └── api/
+        ├── _shared.js          # 后端公共工具
+        ├── diary/
+        │   ├── index.js        # GET  /api/diary        公开读列表
+        │   └── [date].js       # GET  /api/diary/:date  公开读单篇
+        └── admin/
+            └── diary.js        # 写入接口（校验令牌，唯一真正的权限关卡）
 ```
 
 ---
@@ -95,26 +110,22 @@ daily-tracker/
 ## 快速开始
 
 ### 本地使用
-直接双击 `index.html` 在浏览器打开即可，无需任何构建工具或服务器。
+直接双击 `index.html` 在浏览器打开即可（写作台在本地模式下无需任何服务器）。
 
 ### 部署上线
-项目为纯静态网站，支持任何静态托管服务：
+推荐 **Cloudflare Pages + D1**，免费额度足够个人使用，且能实现「只有我能写、朋友只能看」。
 
-```bash
-# 1. 克隆仓库
-git clone https://github.com/your-username/daily-tracker.git
+完整步骤见 **[DEPLOY.md](DEPLOY.md)**，大致是：
 
-# 2. 部署到任意静态服务器
-# 例如：GitHub Pages、Vercel、Netlify、Nginx 等
-# 将 daily-tracker/ 目录下所有文件上传至服务器根目录即可
-```
+1. Cloudflare 建 D1 数据库，执行 `schema.sql` 建表
+2. Pages 连接本仓库，构建命令留空、输出目录填 `/`
+3. 给 Pages 项目绑定 D1，变量名必须是 `DB`
+4. 配置环境变量 `ADMIN_TOKEN`（你的写作暗号）
+5. 重新部署，然后在写作台「设置 → 云端同步」粘贴暗号并发布
 
-**支持的部署平台：**
-- **GitHub Pages** — 推送到 `gh-pages` 分支或项目 Pages 设置
-- **Vercel** — 直接导入项目，自动识别静态站点
-- **Netlify** — 拖拽文件夹或连接 Git 仓库
-- **Nginx / Apache** — 将文件放置于 web 根目录
-- **本地服务器** — `python -m http.server 8080`
+**只想要纯本地版？** 不绑定 D1 也能部署，写作台照常可用，只是 `/view` 公开页读不到数据。
+
+**其他静态平台**（GitHub Pages / Vercel / Netlify / Nginx）：`index.html` 写作台能正常工作，但 `/view` 与 `/api/*` 依赖 Cloudflare Pages Functions，在这些平台上不可用。
 
 ---
 
@@ -130,13 +141,13 @@ git clone https://github.com/your-username/daily-tracker.git
 
 ## 隐私说明
 
-- 无需联网、无需注册、无需手机号
-- 全部数据存储在浏览器 LocalStorage
-- 图片以 Base64 编码本地存储
+- 写作台无需联网、无需注册、无需手机号，全部数据存储在浏览器 LocalStorage
+- **只有你主动点「发布到云端」时，日记才会同步到你自己的 D1 数据库**
+- 公开页对整个互联网可读，但带有 `noindex`，不会被搜索引擎收录
+- 写入权限由服务端校验令牌，访客无法修改或删除你的内容
+- 图片目前以 Base64 编码本地存储，暂不同步（后续接入 R2 对象存储后支持）
 - 支持手动导出备份文件
-- 不收集任何个人信息
-- 不上传任何数据到服务器
-- 无第三方统计或跟踪代码
+- 不收集任何个人信息，无第三方统计或跟踪代码
 
 ---
 
@@ -144,10 +155,13 @@ git clone https://github.com/your-username/daily-tracker.git
 
 项目采用模块化架构，预留了以下功能扩展接口：
 
+- **评论系统** — 访客留言 + 站主管理（规划中，见 DEPLOY.md 后续阶段）
+- **Cloudflare Access 登录** — 用邮箱登录替代手输令牌（规划中）
+- **R2 图片同步** — 日记配图上传对象存储（规划中）
 - 天气数据接入
 - 自定义配色方案
 - 数据加密存储
-- 多端数据同步
+- 多端数据同步（本地↔云端双向同步）
 
 ---
 

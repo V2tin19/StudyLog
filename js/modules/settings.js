@@ -97,6 +97,26 @@ const Settings = {
         </div>
       </div>
       <div class="card mb-16">
+        <div class="card-title"><span>云端同步</span></div>
+        <div class="text-sm text-muted" style="line-height:1.8;margin-bottom:12px;">
+          把本地写的日记发布到你自己的网站上，朋友通过公开页就能看到。<br>
+          写入权限由服务器校验令牌，别人没有令牌就改不了你的内容。
+        </div>
+        <div class="form-group">
+          <label class="form-label">管理令牌</label>
+          <input class="input" id="cloud-token" type="password" autocomplete="off"
+                 placeholder="粘贴你在 Cloudflare 配置的 ADMIN_TOKEN">
+          <div class="text-sm text-muted mt-8">令牌只保存在本机浏览器，不会随页面发送给其他人。</div>
+        </div>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <button class="btn btn-secondary" id="cloud-btn-save" onclick="Cloud.handleSaveToken()">保存令牌</button>
+          <button class="btn btn-secondary" id="cloud-btn-verify" onclick="Cloud.handleVerify()">测试连接</button>
+          <button class="btn btn-primary" id="cloud-btn-publish" onclick="Cloud.handlePublish()">发布到云端</button>
+          <a class="btn btn-secondary" href="view.html" target="_blank" rel="noopener">查看公开页</a>
+        </div>
+        <div id="cloud-status" class="text-sm mt-8"></div>
+      </div>
+      <div class="card mb-16">
         <div class="card-title"><span>数据统计</span></div>
         <div class="card-grid card-grid-3">
           <div class="stat-card"><div class="stat-value">${diaryCount}</div><div class="stat-label">日记</div></div>
@@ -111,12 +131,17 @@ const Settings = {
           <p><strong>StudyLog</strong> · 个人日常记录 v1.0</p>
           <p>一款轻量化个人日常记录 Web 网站</p>
           <p>专注服务个人记录、生活留存、数据复盘</p>
-          <p class="mt-8">数据完全存储在您的本地浏览器中，不上传任何服务器</p>
-          <p>无需联网、无需注册、无需手机号</p>
+          <p class="mt-8">平时写作完全在本地浏览器，不联网也能用</p>
+          <p>只有你主动点「发布到云端」时，日记才会同步到你自己的站点</p>
+          <p>公开页是只读的，别人无法修改你的内容</p>
           <p>纯前端静态页面，可离线使用</p>
         </div>
       </div>
     `;
+
+    /* 令牌回填（不走模板，避免特殊字符被转义破坏） */
+    const tokenInput = document.getElementById('cloud-token');
+    if (tokenInput) tokenInput.value = Cloud.getToken();
   },
 
   setTheme(theme) {

@@ -1,3 +1,7 @@
 User-agent: *
 Allow: /
-Sitemap: https://yourdomain.com/sitemap.xml
+
+# 说明：
+# 公开页 view.html 里带了 <meta name="robots" content="noindex">，
+# 搜索引擎可以抓取但不会把私人日记收录进结果页。
+# 若想让它可被搜索到，删掉 view.html 里那行 meta 即可。
