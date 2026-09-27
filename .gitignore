@@ -24,3 +24,6 @@ Desktop.ini
 dist/
 build/
 *.log
+
+# 本地协作记录（只在本机有意义，不进仓库）
+.workbuddy/
