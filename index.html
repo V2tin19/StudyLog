@@ -89,26 +89,48 @@
 
     .pub-list { display: flex; flex-direction: column; gap: 8px; }
     .pub-row {
-      display: flex; align-items: center; gap: 12px;
       background: var(--bg-card); border: 1px solid var(--border-light);
-      border-radius: var(--radius-md); padding: 12px 15px;
+      border-radius: var(--radius-md);
     }
+    /* 行主体。带跟进记录的行要在下面接一截时间轴，所以整行是个纵向块，
+       横向那一排（圆点 / 标题 / 数值 / 胶囊 / 箭头）都收进 head 里。 */
+    .pub-row-head { display: flex; align-items: center; gap: 12px; padding: 12px 15px; }
+    .pub-row.has-logs > .pub-row-head { cursor: pointer; }
     .pub-row-main { flex: 1; min-width: 0; }
     .pub-row-title { font-size: 0.9rem; font-weight: 500; word-break: break-word; }
     .pub-row-sub { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; word-break: break-word; }
     .pub-row-value { font-size: 0.82rem; color: var(--accent-blue); white-space: nowrap; }
     /* 纯名单型条目（在读 / 在学）前面点一个小圆点，跟带数值的行区分开 */
-    .pub-row-dot::before {
+    .pub-row.pub-row-dot > .pub-row-head::before {
       content: ''; flex: 0 0 auto; width: 5px; height: 5px; border-radius: 50%;
       background: var(--accent-blue); opacity: 0.5;
     }
     /* 已读 / 已掌握：圆点变绿，标题转灰，右边挂个胶囊 */
-    .pub-row.done::before { background: var(--accent-green); opacity: 0.85; }
+    .pub-row.done > .pub-row-head::before { background: var(--accent-green); opacity: 0.85; }
     .pub-row.done .pub-row-title { color: var(--text-muted); }
     .pub-row-badge {
       flex: 0 0 auto; font-size: 0.68rem; color: var(--accent-green);
       border: 1px solid currentColor; border-radius: 999px; padding: 1px 7px;
     }
+    .pub-row-meta { flex: 0 0 auto; font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+    .pub-row-caret {
+      flex: 0 0 auto; line-height: 1; font-size: 1.05rem; color: var(--text-muted);
+      transition: transform var(--transition);
+    }
+    .pub-row.open > .pub-row-head .pub-row-caret { transform: rotate(90deg); }
+    /* 行内的展开区：左右各留出和 head 一样的边距 */
+    .pub-row .pub-logs { margin: 0 15px 12px; }
+
+    /* 书籍 / 技能并排两列 —— 上下各占一整行太费纵向空间 */
+    .pub-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; align-items: start; }
+    .pub-col-title {
+      font-size: 0.76rem; color: var(--text-muted); letter-spacing: 0.08em;
+      margin-bottom: 11px; padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .pub-col-empty { font-size: 0.8rem; color: var(--text-muted); padding: 2px 0 12px; }
+    /* 列只有 300px 出头，再塞「3 条跟进」就把标题挤没了 —— 箭头已经说明能展开 */
+    .pub-cols .pub-row-meta { display: none; }
 
     /* 日记筛选条 */
     .pub-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -208,9 +230,10 @@
     }
     .pub-goal.open .pub-goal-caret { transform: rotate(90deg); }
 
-    /* 推进记录：默认收起，点标题行展开 */
+    /* 推进记录：默认收起，点标题行展开（目标卡和名单行同一套交互） */
     .pub-logs { display: none; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border-light); }
-    .pub-goal.open .pub-logs { display: block; }
+    .pub-goal.open .pub-logs,
+    .pub-row.open .pub-logs { display: block; }
     .pub-log { display: grid; grid-template-columns: 42px 18px 1fr; align-items: center; }
     .pub-log-date { font-size: 0.74rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .pub-log-text { font-size: 0.84rem; padding: 7px 0; word-break: break-word; }
@@ -227,12 +250,18 @@
     .pub-more:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
     .pub-more:disabled { opacity: 0.5; cursor: default; }
 
+    /* 两列各剩不到 280px 就别硬撑了，落回单列 */
+    @media (max-width: 620px) {
+      .pub-cols { grid-template-columns: 1fr; gap: 0; }
+    }
+
     @media (max-width: 460px) {
-      .pub-stat { padding: 13px 4px; }
+      .pub-stat { padding: 13px 4px; }       /* 日记页顶部那三格还在用 */
       .pub-stat-value { font-size: 1.2rem; }
       .pub-main { padding: 20px 16px 56px; }
       .pub-card { padding: 15px 16px; }
-      .pub-row { padding: 11px 13px; }
+      .pub-row-head { padding: 11px 13px; }
+      .pub-row .pub-logs { margin: 0 13px 10px; }
       .pub-day { padding: 12px 14px 6px; }
       .pub-slot { grid-template-columns: 42px 16px 1fr; }
       .pub-log { grid-template-columns: 38px 16px 1fr; }
@@ -272,7 +301,6 @@
     </section>
 
     <section class="pub-panel hidden" id="pub-panel-study">
-      <div class="pub-hero" id="study-hero"></div>
       <div id="study-body"></div>
     </section>
 

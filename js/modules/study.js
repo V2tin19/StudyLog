@@ -128,31 +128,97 @@ const Study = {
   addBook(data) {
     return Store.addItem(this.BOOKS_KEY, {
       ...data,
-      status: data.status || 'reading'
+      status: data.status || 'reading',
+      logs: []                    /* 跟进记录，结构见 Utils.getLogs */
     });
   },
 
-  /* 勾选完成 / 取消归档（局部刷新 + 单条目滑动动画） */
-  toggleBookDone(id) {
-    const el = document.getElementById('study-book-list');
+  updateBook(id, data) { return Store.updateItem(this.BOOKS_KEY, id, data); },
+
+  deleteBook(id) {
+    Store.removeItem(this.BOOKS_KEY, id);
+    this.renderStudyPage(document.getElementById('page-container'));
+  },
+
+  /* ---- 技能清单 ---- */
+  getSkills() { return Store.getList(this.SKILLS_KEY); },
+
+  addSkill(data) {
+    return Store.addItem(this.SKILLS_KEY, {
+      ...data,
+      status: data.status || 'active',
+      logs: []                    /* 跟进记录，结构见 Utils.getLogs */
+    });
+  },
+
+  updateSkill(id, data) {
+    return Store.updateItem(this.SKILLS_KEY, id, data);
+  },
+
+  deleteSkill(id) {
+    Store.removeItem(this.SKILLS_KEY, id);
+    this.renderStudyPage(document.getElementById('page-container'));
+  },
+
+  /* ---- 书 / 技能的跟进记录 ----
+     跟目标是同一套：记录挂在对象内部的 logs 上，跟着父对象一起同步，
+     所以要专门写的只有「读输入框 → 追加 → 重渲染 → 焦点放回去」这四步。 */
+  addBookLog(id) { this._addLog(this.BOOKS_KEY, id); },
+  addSkillLog(id) { this._addLog(this.SKILLS_KEY, id); },
+  deleteBookLog(id, logId) { this._deleteLog(this.BOOKS_KEY, id, logId); },
+  deleteSkillLog(id, logId) { this._deleteLog(this.SKILLS_KEY, id, logId); },
+
+  _addLog(key, id) {
+    const text = Utils.readLogInput(id);
+    if (!text) return;
+
+    const item = Store.getItem(key, id);
+    if (!item) return;
+
+    /* 必须传整个新数组 —— Store.updateItem 是浅合并，只传新那条会把旧记录覆盖掉 */
+    Store.updateItem(key, id, { logs: Utils.appendLog(item, text) });
+
+    this.renderStudyPage(document.getElementById('page-container'));
+    Utils.focusLogInput(id);
+  },
+
+  _deleteLog(key, id, logId) {
+    const item = Store.getItem(key, id);
+    if (!item) return;
+    Store.updateItem(key, id, { logs: Utils.removeLog(item, logId) });
+    this.renderStudyPage(document.getElementById('page-container'));
+  },
+
+  /* ---- 勾选完成 / 取消归档（局部刷新 + 单条目滑动动画） ---- */
+  toggleBookDone(id) { this._toggleDone(this.BOOKS_KEY, 'book', id); },
+
+  toggleSkillDone(id) { this._toggleDone(this.SKILLS_KEY, 'skill', id); },
+
+  _toggleDone(key, kind, id) {
+    const el = document.getElementById(kind === 'book' ? 'study-book-list' : 'study-skill-list');
     if (!el) return;
-    /* First：记录各条目当前位置 */
+
+    /* First：记录各条目当前位置（量的是整块 .track-item，
+       因为它下面还挂着记录和输入框，只量标题行会跟记录脱节） */
     const firstPos = {};
-    [...el.querySelectorAll('.list-item')].forEach(item => {
+    [...el.querySelectorAll('.track-item')].forEach(item => {
       firstPos[item.dataset.id] = item.getBoundingClientRect().top;
     });
-    const book = Store.getItem(this.BOOKS_KEY, id);
-    if (book) {
-      book.status = book.status === 'done' ? 'reading' : 'done';
-      Store.updateItem(this.BOOKS_KEY, id, book);
-      el.innerHTML = this.renderBooks();
-      this._animateReorder(el, firstPos);
-    }
+
+    const item = Store.getItem(key, id);
+    if (!item) return;
+
+    /* 取消完成要退回「原本那个进行中状态」：书是 reading，技能是 active */
+    item.status = item.status === 'done' ? (kind === 'book' ? 'reading' : 'active') : 'done';
+    Store.updateItem(key, id, item);
+
+    el.innerHTML = this._renderList(key, kind);
+    this._animateReorder(el, firstPos);
   },
 
   /* FLIP 动画：条目从原位平滑滑到重排后的新位置 */
   _animateReorder(listEl, firstPos) {
-    [...listEl.querySelectorAll('.list-item')].forEach(el => {
+    [...listEl.querySelectorAll('.track-item')].forEach(el => {
       const oldTop = firstPos[el.dataset.id];
       const newTop = el.getBoundingClientRect().top;
       if (oldTop !== undefined && oldTop !== newTop) {
@@ -169,41 +235,8 @@ const Study = {
     });
   },
 
-  /* ---- 技能清单 ---- */
-  getSkills() { return Store.getList(this.SKILLS_KEY); },
-
-  addSkill(data) {
-    return Store.addItem(this.SKILLS_KEY, {
-      ...data,
-      status: data.status || 'active'
-    });
-  },
-
-  updateSkill(id, data) {
-    return Store.updateItem(this.SKILLS_KEY, id, data);
-  },
-
-  /* 勾选完成 / 取消归档（局部刷新 + 单条目滑动动画） */
-  toggleSkillDone(id) {
-    const el = document.getElementById('study-skill-list');
-    if (!el) return;
-    const firstPos = {};
-    [...el.querySelectorAll('.list-item')].forEach(item => {
-      firstPos[item.dataset.id] = item.getBoundingClientRect().top;
-    });
-    const skill = Store.getItem(this.SKILLS_KEY, id);
-    if (skill) {
-      skill.status = skill.status === 'done' ? 'active' : 'done';
-      Store.updateItem(this.SKILLS_KEY, id, skill);
-      el.innerHTML = this.renderSkills();
-      this._animateReorder(el, firstPos);
-    }
-  },
-
   /* ---- 渲染 ---- */
   renderStudyPage(container) {
-    const today = Utils.today();
-
     container.innerHTML = `
       <div class="card mb-16">
         <div class="card-title">
@@ -283,22 +316,53 @@ const Study = {
     App.refresh();
   },
 
-  /* ---- 书籍列表（进行中在前，已归档沉底） ---- */
-  renderBooks() {
-    const books = this.getBooks();
-    const reading = books.filter(b => b.status !== 'done');
-    const done = books.filter(b => b.status === 'done');
-    const sorted = [...reading, ...done];
-    if (sorted.length === 0) return '<div class="empty-state-text">暂无书籍，点击上方添加</div>';
-    return sorted.map(b => `
-      <div class="list-item${b.status === 'done' ? ' archived' : ''}" data-id="${b.id}">
-        <div class="habit-check${b.status === 'done' ? ' done' : ''}" onclick="Study.toggleBookDone('${b.id}')"></div>
-        <div class="list-item-main">
-          <div class="list-item-title">${b.title || '未命名'}</div>
-          ${b.notes ? `<div class="list-item-sub">${b.notes}</div>` : ''}
+  /* ---- 书籍 / 技能列表 ----
+     两边的结构完全一样：勾选完成 + 标题 + 备注 + 跟进记录 + 随手记输入框，
+     所以共用一个渲染器，只有字段名（title / name）和按钮回调不同。 */
+  renderBooks() { return this._renderList(this.BOOKS_KEY, 'book'); },
+
+  renderSkills() { return this._renderList(this.SKILLS_KEY, 'skill'); },
+
+  _renderList(key, kind) {
+    const isBook = kind === 'book';
+    const items = Store.getList(key);
+
+    /* 进行中在前，已完成的沉底 */
+    const sorted = [
+      ...items.filter(x => x.status !== 'done'),
+      ...items.filter(x => x.status === 'done')
+    ];
+    if (sorted.length === 0) {
+      return `<div class="empty-state-text">暂无${isBook ? '书籍' : '技能'}，点击上方添加</div>`;
+    }
+
+    return sorted.map(x => {
+      const done = x.status === 'done';
+      const title = isBook ? (x.title || '未命名') : (x.name || '未命名');
+      const toggle = isBook ? 'toggleBookDone' : 'toggleSkillDone';
+      const del = isBook ? 'deleteBook' : 'deleteSkill';
+      const addLog = isBook ? 'addBookLog' : 'addSkillLog';
+      const delLog = isBook ? 'deleteBookLog' : 'deleteSkillLog';
+      /* 只有技能有「编辑」（书名 + 备注就两个字段，改不如删了重加） */
+      const editBtn = isBook ? '' :
+        `<button class="btn btn-sm btn-secondary" onclick="Study.showEditSkill('${x.id}')">编辑</button>`;
+
+      return `
+        <div class="track-item" data-id="${x.id}">
+          <div class="list-item${done ? ' archived' : ''}">
+            <div class="habit-check${done ? ' done' : ''}" onclick="Study.${toggle}('${x.id}')"></div>
+            <div class="list-item-main">
+              <div class="list-item-title">${Utils.esc(title)}</div>
+              ${x.notes ? `<div class="list-item-sub">${Utils.esc(x.notes)}</div>` : ''}
+            </div>
+            ${editBtn}
+            <button class="btn btn-sm btn-danger" onclick="Study.${del}('${x.id}')">×</button>
+          </div>
+          ${Utils.logsHtml(x, (itemId, logId) => `Study.${delLog}('${itemId}','${logId}')`)}
+          ${Utils.logFormHtml(x.id, `Study.${addLog}('${x.id}')`, '记一笔…（回车提交）')}
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   },
 
   showAddBook() {
@@ -319,25 +383,6 @@ const Study = {
     const notes = document.getElementById('book-notes')?.value || '';
     this.addBook({ title, notes });
     App.refresh();
-  },
-
-  /* ---- 技能列表（进行中在前，已归档沉底） ---- */
-  renderSkills() {
-    const skills = this.getSkills();
-    const active = skills.filter(s => s.status !== 'done');
-    const done = skills.filter(s => s.status === 'done');
-    const sorted = [...active, ...done];
-    if (sorted.length === 0) return '<div class="empty-state-text">暂无技能，点击上方添加</div>';
-    return sorted.map(s => `
-      <div class="list-item${s.status === 'done' ? ' archived' : ''}" data-id="${s.id}">
-        <div class="habit-check${s.status === 'done' ? ' done' : ''}" onclick="Study.toggleSkillDone('${s.id}')"></div>
-        <div class="list-item-main">
-          <div class="list-item-title">${s.name || '未命名'}</div>
-          ${s.notes ? `<div class="list-item-sub">${s.notes}</div>` : ''}
-        </div>
-        <button class="btn btn-sm btn-secondary" onclick="Study.showEditSkill('${s.id}')">编辑</button>
-      </div>
-    `).join('');
   },
 
   showAddSkill() {

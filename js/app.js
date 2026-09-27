@@ -6,6 +6,10 @@
 const App = {
   currentPage: 'timeline',
 
+  /* 是否已经渲染过一次。用来区分「首次进入」和「同页重渲染」——
+     只有前者该播入场动画。 */
+  _renderedOnce: false,
+
   pages: {
     timeline: { title: '时间线', render: (c) => Timeline.render(c) },
     dashboard: { title: '仪表盘', render: (c) => Dashboard.render(c) },
@@ -96,6 +100,10 @@ const App = {
   navigate(page) {
     if (!this.pages[page]) page = 'timeline';
 
+    /* 换页才播入场动画。同一个页面重渲染（写完一条推进记录之类）不播 ——
+       否则每写一笔，整屏卡片就一起重播一次位移，眼睛很难受。 */
+    const switching = !this._renderedOnce || page !== this.currentPage;
+
     this.currentPage = page;
 
     /* 更新页面标题 */
@@ -110,6 +118,17 @@ const App = {
     const container = document.getElementById('page-container');
     container.innerHTML = '';
     this.pages[page].render(container);
+
+    /* 入场动画只在换页时播。
+       这里走 Web Animations 而不是挂 CSS class：class 方案要等下一次样式重算动画才起步，
+       实测中间会露出 2~3 帧的全亮页面，看着像闪一下；fill:'backwards' 让首帧立刻生效。 */
+    if (switching) {
+      container.animate(
+        [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'translateY(0)' }],
+        { duration: 220, easing: 'ease-out', fill: 'backwards' }
+      );
+    }
+    this._renderedOnce = true;
 
     /* 滚动到顶部 */
     window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -317,33 +317,33 @@ img { max-width: 100%; height: auto; display: block; }
 .list-item-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
 .list-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
-/* ---- 目标的推进记录 ----
-   一个目标 = 标题行 + 若干条记录 + 随手记输入框，所以外层要包一层 .goal-item。
-   分隔线搬到这里，里面的 .list-item 就不再画线了（否则每个目标会多一条）。 */
-.goal-item { border-bottom: 1px solid var(--border-light); }
-.goal-item:last-child { border-bottom: none; }
-.goal-item .list-item { border-bottom: none; padding-bottom: 6px; }
+/* ---- 跟进记录（目标 / 书籍 / 技能共用） ----
+   一条条目 = 标题行 + 若干条记录 + 随手记输入框，所以外层要包一层 .track-item。
+   分隔线搬到这里，里面的 .list-item 就不再画线了（否则每条会多一条）。 */
+.track-item { border-bottom: 1px solid var(--border-light); }
+.track-item:last-child { border-bottom: none; }
+.track-item .list-item { border-bottom: none; padding-bottom: 6px; }
 
-.goal-logs { padding: 0 0 8px 32px; }   /* 左缩进对齐标题文字，看得出是挂在目标下面的 */
-.goal-log { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
-.goal-log-date {
+.track-logs { padding: 0 0 8px 32px; }   /* 左缩进对齐标题文字，看得出是挂在标题下面的 */
+.track-log { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
+.track-log-date {
   flex: 0 0 auto; font-size: 0.74rem; color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
-.goal-log-text {
+.track-log-text {
   flex: 1; min-width: 0; font-size: 0.8rem; color: var(--text-secondary);
   word-break: break-word;
 }
-.goal-log-del {
+.track-log-del {
   flex: 0 0 auto; font-size: 0.85rem; line-height: 1; padding: 0 4px;
   color: var(--text-muted); border-radius: 4px;
   opacity: 0.35;                          /* 触屏上 hover 不了，所以一直留个淡淡的影子 */
   transition: all var(--transition);
 }
-.goal-log-del:hover { opacity: 1; color: var(--accent-red); }
+.track-log-del:hover { opacity: 1; color: var(--accent-red); }
 
-.goal-log-form { display: flex; gap: 8px; padding: 0 0 14px 32px; }
-.goal-log-form .input { flex: 1; padding: 6px 10px; font-size: 0.82rem; }
+.track-log-form { display: flex; gap: 8px; padding: 0 0 14px 32px; }
+.track-log-form .input { flex: 1; min-width: 0; padding: 6px 10px; font-size: 0.82rem; }
 
 /* ---- 心情选择器 ---- */
 .mood-selector {
@@ -557,7 +557,8 @@ tr:hover td { background: var(--bg-hover); }
     padding-bottom: calc(var(--bottom-nav-height) + 16px);
   }
   .card-grid { grid-template-columns: 1fr !important; }
-  .study-cols { grid-template-columns: repeat(2, 1fr) !important; }
+  /* 书 / 技能底下现在都挂着记录和输入框，窄屏再并两列就没法用了 */
+  .study-cols { grid-template-columns: 1fr !important; }
   .card-row { flex-direction: column; }
   .stat-card { padding: 12px; }
   .stat-value { font-size: 1.3rem; }
@@ -573,12 +574,15 @@ tr:hover td { background: var(--bg-hover); }
   #menu-toggle { display: none !important; }
 }
 
-/* ---- 动画 ---- */
+/* ---- 动画 ----
+   .page-enter 是各表单页自己的入场淡入。
+   整页的换页动画不在这里 —— 它由 App.navigate 用 Web Animations 直接下发，
+   因为 CSS class 方案要等一次样式重算才起步，会先露出几帧全亮页面。
+   以前 .card 是自带 slideUp 的，而重渲染会清空重建容器，
+   于是每写一条推进记录满屏卡片就一起重播一次位移，晃得厉害 —— 已经拿掉。 */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 .page-enter { animation: fadeIn 0.25s ease; }
-.card { animation: slideUp 0.3s ease; }
 
 /* ---- 简易适配小屏横屏 ---- */
 @media (max-height: 500px) {

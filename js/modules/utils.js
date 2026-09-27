@@ -92,6 +92,81 @@ const Utils = {
       .replace(/'/g, '&#39;');
   },
 
+  /* ---- 跟进记录（目标 / 书籍 / 技能共用） ----
+     结构：[{ id, date: 'YYYY-MM-DD', content, createdAt }]
+     挂在各自对象内部（goal.logs / book.logs / skill.logs），不是独立的一份数据 ——
+     这样它跟着父对象一起被 doc 同步带走，一行同步代码都不用写。 */
+  getLogs(item) {
+    return (item && Array.isArray(item.logs)) ? item.logs : [];
+  },
+
+  /* 日期标签：今年的显示 9/20，跨年的显示 25/12/24 */
+  logDateLabel(date) {
+    const parts = String(date || '').split('-');
+    if (parts.length < 3) return String(date || '');
+    const sameYear = parts[0] === this.today().slice(0, 4);
+    return sameYear
+      ? `${Number(parts[1])}/${Number(parts[2])}`
+      : `${parts[0].slice(2, 4)}/${Number(parts[1])}/${Number(parts[2])}`;
+  },
+
+  /* 追加一条，返回整个新数组。
+     ⚠️ Store.updateItem 是浅合并（只覆盖你传的那几个字段），
+     所以改嵌套数组必须把整个新数组传回去；只传新增的那一条会把已有记录全抹掉。 */
+  appendLog(item, text) {
+    return this.getLogs(item).concat([{
+      id: this.uid(),
+      date: this.today(),
+      content: text,
+      createdAt: new Date().toISOString()
+    }]);
+  },
+
+  removeLog(item, logId) {
+    return this.getLogs(item).filter(l => l.id !== logId);
+  },
+
+  /* 一组记录行。传进来的货按显示顺序排（最新的在上面）。
+     onDelete(itemId, logId) 要返回一段 JS 调用串，比如 "Extras.deleteGoalLog('a','b')" */
+  logsHtml(item, onDelete) {
+    const logs = this.getLogs(item).slice().reverse();
+    if (logs.length === 0) return '';
+    return '<div class="track-logs">' + logs.map(l => `
+      <div class="track-log">
+        <span class="track-log-date">${this.logDateLabel(l.date)}</span>
+        <span class="track-log-text">${this.esc(l.content)}</span>
+        <button class="track-log-del" title="删除这条记录" onclick="${onDelete(item.id, l.id)}">×</button>
+      </div>`).join('') + '</div>';
+  },
+
+  /* 一整块「随手记」输入行。call 是一段 JS 调用串，回车和按钮都走它 */
+  logFormHtml(id, call, placeholder) {
+    return `
+      <div class="track-log-form">
+        <input class="input" id="log-input-${id}"
+               placeholder="${placeholder || '记一笔…（回车提交）'}"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();${call}}">
+        <button class="btn btn-sm btn-primary" onclick="${call}">记录</button>
+      </div>`;
+  },
+
+  /* 读输入框。空的就聚焦一下并返回 null —— 空提交当没点过，不用弹窗骂人 */
+  readLogInput(id) {
+    const el = document.getElementById('log-input-' + id);
+    if (!el) return null;
+    const text = el.value.trim();
+    if (!text) { el.focus(); return null; }
+    return text;
+  },
+
+  /* 整页重渲染会丢焦点 —— 记完一笔把光标放回输入框，好连着记几条 */
+  focusLogInput(id) {
+    const el = document.getElementById('log-input-' + id);
+    if (!el) return;
+    el.focus();
+    if (el.setSelectionRange) el.setSelectionRange(el.value.length, el.value.length);
+  },
+
   /* ---- 深拷贝 ---- */
   clone(obj) { return JSON.parse(JSON.stringify(obj)); },
 
