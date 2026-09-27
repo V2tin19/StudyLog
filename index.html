@@ -238,6 +238,66 @@
     .pub-log-date { font-size: 0.74rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .pub-log-text { font-size: 0.84rem; padding: 7px 0; word-break: break-word; }
 
+    /* 留言：日记卡底部就一行「n 条留言」，点开长出来 */
+    .pub-comments { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-light); }
+    .pub-comments-toggle {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      font-size: 0.82rem; color: var(--text-secondary);
+      transition: color var(--transition);
+    }
+    .pub-comments-toggle:hover { color: var(--accent-blue); }
+    .pub-comments-toggle .pub-caret {
+      margin-left: auto; font-size: 1.05rem; line-height: 1; color: var(--text-muted);
+      transition: transform var(--transition);
+    }
+    .pub-comments.open .pub-comments-toggle .pub-caret { transform: rotate(90deg); }
+    .pub-comments-body { display: none; margin-top: 10px; }
+    .pub-comments.open .pub-comments-body { display: block; }
+    .pub-comments-hint { font-size: 0.8rem; color: var(--text-muted); padding: 4px 0 8px; }
+
+    /* 一条留言（日记下和留言簿共用内部这几个类），两者只有外壳不同 */
+    .pub-comment { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--border-light); }
+    .pub-comment:last-child { border-bottom: none; }
+    .pub-comment-av {
+      flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+      background: var(--bg-tertiary); color: var(--text-secondary);
+      font-size: 0.72rem; display: flex; align-items: center; justify-content: center;
+    }
+    .pub-comment-main { flex: 1; min-width: 0; }
+    .pub-comment-head { font-size: 0.72rem; color: var(--text-muted); }
+    .pub-comment-name { color: var(--text-primary); font-weight: 500; }
+    .pub-comment-text { font-size: 0.86rem; line-height: 1.7; margin-top: 2px; word-break: break-word; }
+
+    /* 发表单：昵称 + 内容 + 按钮 */
+    .pub-cform { margin-top: 12px; }
+    .pub-cform-row { display: flex; gap: 8px; align-items: flex-start; }
+    .pub-cform .input { padding: 7px 12px; font-size: 0.84rem; }
+    .pub-cform .pub-input-name { flex: 0 0 92px; }
+    .pub-cform .pub-input-text { flex: 1; min-width: 0; }
+    .pub-cform .btn:disabled { opacity: 0.55; cursor: default; }
+    .pub-cform-note { font-size: 0.7rem; color: var(--text-muted); margin-top: 7px; line-height: 1.6; }
+    .pub-cform-msg { font-size: 0.78rem; margin-top: 6px; line-height: 1.6; }
+    .pub-cform-msg.err { color: var(--accent-red); }
+    .pub-cform-msg.ok { color: var(--accent-green); }
+    /* 蜜罐：正常人看不见，只有机器人会老实填。
+       用绝对定位移出屏幕而不是 display:none —— 有些爬虫会跳过 display:none 的字段。 */
+    .hp-field { position: absolute; left: -9999px; top: 0; width: 1px; height: 1px; opacity: 0; }
+
+    /* 留言簿 */
+    .pub-board-top {
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 22px;
+    }
+    .pub-board-title { font-size: 0.9rem; font-weight: 500; margin-bottom: 2px; }
+    .pub-board-desc { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px; }
+    .pub-board-top .pub-cform { margin-top: 10px; }
+    .pub-board-list { display: flex; flex-direction: column; gap: 8px; }
+    .pub-board-item {
+      display: flex; gap: 11px; padding: 12px 15px;
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+    }
+
     .pub-state { text-align: center; padding: 48px 16px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.9; }
     .pub-state strong { display: block; color: var(--text-secondary); font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
 
@@ -260,6 +320,8 @@
       .pub-stat-value { font-size: 1.2rem; }
       .pub-main { padding: 20px 16px 56px; }
       .pub-card { padding: 15px 16px; }
+      .pub-cform .pub-input-name { flex: 0 0 70px; }   /* 窄屏给内容框让位 */
+      .pub-board-top { padding: 14px 15px; }
       .pub-row-head { padding: 11px 13px; }
       .pub-row .pub-logs { margin: 0 13px 10px; }
       .pub-day { padding: 12px 14px 6px; }
@@ -289,6 +351,7 @@
       <button class="pub-tab" data-tab="study">学习</button>
       <button class="pub-tab" data-tab="schedule">日程</button>
       <button class="pub-tab" data-tab="goals">目标</button>
+      <button class="pub-tab" data-tab="board">留言</button>
     </nav>
 
     <section class="pub-panel" id="pub-panel-diary">
@@ -310,6 +373,10 @@
 
     <section class="pub-panel hidden" id="pub-panel-goals">
       <div id="goals-body"></div>
+    </section>
+
+    <section class="pub-panel hidden" id="pub-panel-board">
+      <div id="board-body"></div>
     </section>
   </main>
 

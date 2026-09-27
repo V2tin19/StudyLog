@@ -13,7 +13,7 @@
  * 收益却接近于零。等哪天需要「只查某本书」这类查询再拆也不迟。
  */
 
-import { json, dbMissing, safeEqual } from '../_shared.js';
+import { json, dbMissing, requireAdmin } from '../_shared.js';
 
 /* 允许的 key，写别的会被拒 —— 防止前端笔误在库里攒垃圾 */
 const VALID_KEYS = ['study', 'schedule', 'goals'];
@@ -21,27 +21,10 @@ const MAX_PAYLOAD = 800000;   /* 字符数上限，防呆；正常个人数据�
 
 const NO_STORE = { 'cache-control': 'no-store' };
 
-function deny(request, env) {
-  const expected = env.ADMIN_TOKEN;
-  if (!expected) {
-    return json(
-      { error: '服务端还没有设置 ADMIN_TOKEN 环境变量，请在 Pages 项目设置里添加后再试' },
-      500,
-      NO_STORE
-    );
-  }
-  const header = request.headers.get('Authorization') || '';
-  const provided = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-  if (!provided || !safeEqual(provided, expected)) {
-    return json({ error: '令牌不正确，无权操作' }, 401, NO_STORE);
-  }
-  return null;
-}
-
 /* ---------------- GET：对账用 ---------------- */
 export async function onRequestGet({ env, request }) {
   if (!env.DB) return dbMissing();
-  const rejected = deny(request, env);
+  const rejected = requireAdmin(request, env);
   if (rejected) return rejected;
 
   let results = [];
@@ -65,7 +48,7 @@ export async function onRequestGet({ env, request }) {
 /* ---------------- POST：写入 ---------------- */
 export async function onRequestPost({ env, request }) {
   if (!env.DB) return dbMissing();
-  const rejected = deny(request, env);
+  const rejected = requireAdmin(request, env);
   if (rejected) return rejected;
 
   let body;

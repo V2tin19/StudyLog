@@ -17,6 +17,7 @@ const App = {
     study: { title: '学习', render: (c) => Study.renderStudyPage(c) },
     schedule: { title: '日程', render: (c) => Extras.renderSchedulePage(c) },
     goals: { title: '目标', render: (c) => Extras.renderGoalsPage(c) },
+    comments: { title: '留言', render: (c) => Comments.render(c) },
     settings: { title: '设置', render: (c) => Settings.render(c) }
   },
 

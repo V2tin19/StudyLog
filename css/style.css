@@ -345,6 +345,39 @@ img { max-width: 100%; height: auto; display: block; }
 .track-log-form { display: flex; gap: 8px; padding: 0 0 14px 32px; }
 .track-log-form .input { flex: 1; min-width: 0; padding: 6px 10px; font-size: 0.82rem; }
 
+/* ---- 留言管理（写作台） ---- */
+.comment-row { padding: 14px 0; border-bottom: 1px solid var(--border-light); }
+.comment-row:last-child { border-bottom: none; }
+.comment-row.is-hidden { opacity: 0.55; }
+.comment-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 0.74rem; color: var(--text-muted);
+}
+.comment-src {
+  font-size: 0.68rem; color: var(--accent-blue);
+  border: 1px solid currentColor; border-radius: 999px; padding: 1px 8px;
+}
+.comment-src.is-board { color: var(--accent-orange); }
+.comment-who { font-size: 0.82rem; font-weight: 500; color: var(--text-primary); }
+.comment-flag {
+  font-size: 0.68rem; color: var(--accent-red);
+  border: 1px solid currentColor; border-radius: 999px; padding: 1px 8px;
+}
+.comment-text {
+  font-size: 0.88rem; line-height: 1.8; margin-top: 6px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.comment-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+/* 建表 SQL 代码块：整段可以选中复制 */
+.setup-sql {
+  margin-top: 12px; padding: 14px 16px;
+  background: var(--bg-tertiary); border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-size: 0.76rem; line-height: 1.75; color: var(--text-secondary);
+  overflow-x: auto; white-space: pre; user-select: text;
+}
+
 /* ---- 心情选择器 ---- */
 .mood-selector {
   display: flex; gap: 8px; flex-wrap: wrap;

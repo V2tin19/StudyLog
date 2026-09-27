@@ -63,3 +63,29 @@ export function isValidDate(str) {
   const dt = new Date(Date.UTC(y, m - 1, d));
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
+
+/**
+ * 管理接口的令牌校验。
+ * 通过返回 null；不通过返回一个可以直接 return 出去的响应。
+ *
+ * 抽在这里是因为有三个管理接口都要用 —— 各写一份迟早会走偏（改一处漏两处）。
+ * 真正的关卡在服务端，前端隐藏按钮只是 UI 效果，不能当权限用。
+ */
+export function requireAdmin(request, env) {
+  const expected = env.ADMIN_TOKEN;
+  if (!expected) {
+    return json(
+      { error: '服务端还没有设置 ADMIN_TOKEN 环境变量，请在 Pages 项目设置里添加后再试' },
+      500,
+      { 'cache-control': 'no-store' }
+    );
+  }
+
+  const header = request.headers.get('Authorization') || '';
+  const provided = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+
+  if (!provided || !safeEqual(provided, expected)) {
+    return json({ error: '令牌不正确，无权操作' }, 401, { 'cache-control': 'no-store' });
+  }
+  return null;
+}

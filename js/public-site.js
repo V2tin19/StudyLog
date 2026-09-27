@@ -14,7 +14,7 @@
 
   var DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   var WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];   /* 展示顺序按周一开头，跟中文习惯一致 */
-  var TABS = ['diary', 'study', 'schedule', 'goals'];
+  var TABS = ['diary', 'study', 'schedule', 'goals', 'board'];
 
   /* 心情标签 → 显示名 + 颜色（颜色值取自 style.css 的 accent 变量） */
   var MOODS = {
@@ -179,6 +179,7 @@
           pinHtml + moodHtml +
         '</div>' +
         contentHtml + reviewHtml + imagesHtml +
+        commentsBoxHtml(e.date) +
       '</div>' +
     '</article>';
   }
@@ -594,9 +595,349 @@
   }
 
   /* =========================================================
-     其他三类数据的加载与切换
+     留言
+
+     两处用同一套零件：日记卡底部（scope=diary + 日期）和留言簿（scope=board）。
+     差别只有三处：外壳 class、排序方向、以及「日记下要按日期缓存」。
      ========================================================= */
 
+  var COMMENT_API = '/api/comments';
+  var NAME_KEY = 'studylog_comment_name';
+  var BOARD_PAGE = 30;
+
+  var commentCounts = {};     /* 日期 → 条数。公开页启动时一次查完 */
+  var commentCache = {};      /* 日期 → 留言数组。点开过一次就不再请求 */
+  var commentBlocked = false; /* 留言表还没建：整块隐藏，别给访客看坏掉的东西 */
+
+  /* 留言簿分页状态 */
+  var boardOffset = 0;
+  var boardLoading = false;
+  var boardInited = false;
+
+  function savedName() {
+    try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function rememberName(name) {
+    try { localStorage.setItem(NAME_KEY, name); } catch (e) { /* 隐私模式忽略 */ }
+  }
+
+  /* 头像圈里就一个字 */
+  function nameInitial(name) {
+    var s = String(name || '').trim();
+    return s ? s.slice(0, 1) : '访';
+  }
+
+  /* ISO 时间 → 9/27 21:10（今年的省掉年份） */
+  function shortTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var now = new Date();
+    var ymd = (d.getFullYear() === now.getFullYear() ? '' : String(d.getFullYear()).slice(2) + '/') +
+      (d.getMonth() + 1) + '/' + d.getDate();
+    var pad = function (n) { return n < 10 ? '0' + n : String(n); };
+    return ymd + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  /* 一条留言。outerClass 分开日记（.pub-comment）和留言簿（.pub-board-item），
+     内部那几个类两边共用。 */
+  function commentHtml(c, outerClass) {
+    return '<div class="' + (outerClass || 'pub-comment') + '">' +
+      '<div class="pub-comment-av">' + esc(nameInitial(c.name)) + '</div>' +
+      '<div class="pub-comment-main">' +
+        '<div class="pub-comment-head"><span class="pub-comment-name">' +
+          esc(c.name || '访客') + '</span> · ' + esc(shortTime(c.createdAt)) + '</div>' +
+        '<div class="pub-comment-text">' + esc(c.content || '') + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* 发布表单。scope / target 挂在 form 的 data 属性上，提交时从 DOM 读回去 ——
+     这样同一个函数能同时给「每一篇日记」和「留言簿」用，不用生成一堆唯一 id。 */
+  function formHtml(scope, target) {
+    return '<form class="pub-cform" data-scope="' + esc(scope) + '" data-target="' + esc(target) + '">' +
+      '<div class="pub-cform-row">' +
+        '<input class="input pub-input-name" name="name" maxlength="24" autocomplete="off" ' +
+          'placeholder="昵称" value="' + esc(savedName()) + '">' +
+        '<input class="input pub-input-text" name="content" maxlength="500" autocomplete="off" placeholder="说点什么…">' +
+        '<button class="btn btn-sm btn-primary" type="submit">发送</button>' +
+      '</div>' +
+      '<input class="hp-field" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+      '<div class="pub-cform-msg"></div>' +
+      '<div class="pub-cform-note">留言会公开展示 · 一分钟最多 3 条 · 不能带链接</div>' +
+    '</form>';
+  }
+
+  function setFormMsg(form, text, kind) {
+    var el = form.querySelector('.pub-cform-msg');
+    if (!el) return;
+    el.className = 'pub-cform-msg' + (kind ? ' ' + kind : '');
+    el.textContent = text || '';
+  }
+
+  /* 日记卡底部那条「n 条留言」 */
+  function commentsBoxHtml(date) {
+    if (commentBlocked) return '';    /* 表还没建：连这一行都不出现 */
+    var n = commentCounts[date];
+    var known = typeof n === 'number';
+    /* -1 = 「还没问到条数」，等 counts 回来再补数字，别先显示 0 骗人 */
+    return '<div class="pub-comments" data-date="' + esc(date) + '" data-count="' + (known ? n : -1) + '">' +
+      '<button type="button" class="pub-comments-toggle">' +
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">' +
+          '<path d="M2 3.5h12v8H7l-3.5 3v-3H2z"/></svg>' +
+        '<span class="pub-comments-label">' + (known && n ? n + ' 条留言' : '留言') + '</span>' +
+        '<span class="pub-caret" aria-hidden="true">›</span>' +
+      '</button>' +
+      '<div class="pub-comments-body"></div>' +
+    '</div>';
+  }
+
+  function paintComments(body, date, list) {
+    body.setAttribute('data-loaded', '1');
+    body.innerHTML = (list.length
+      ? list.map(function (c) { return commentHtml(c); }).join('')
+      : '<div class="pub-comments-hint">还没有人留言，来说第一句</div>') +
+      formHtml('diary', date);
+  }
+
+  function loadComments(date, body) {
+    if (commentCache[date]) { paintComments(body, date, commentCache[date]); return; }
+
+    body.innerHTML = '<div class="pub-comments-hint">正在读取…</div>';
+
+    fetch(COMMENT_API + '?scope=diary&target=' + encodeURIComponent(date), { headers: { accept: 'application/json' } })
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
+          return data;
+        });
+      })
+      .then(function (data) {
+        var list = data.comments || [];
+        commentCache[date] = list;
+        paintComments(body, date, list);
+      })
+      .catch(function (err) {
+        body.innerHTML = '<div class="pub-comments-hint">读取失败：' + esc(err.message || String(err)) + '</div>';
+      });
+  }
+
+  function toggleComments(btn) {
+    var box = btn.parentNode;
+    if (!box || !box.classList) return;
+
+    if (box.classList.toggle('open') === false) return;   /* 收起来了，不用读数据 */
+
+    var body = box.querySelector('.pub-comments-body');
+    if (!body || body.getAttribute('data-loaded') === '1') return;
+    loadComments(box.getAttribute('data-date'), body);
+  }
+
+  function onCommentClick(e) {
+    var btn = e.target && e.target.closest ? e.target.closest('.pub-comments-toggle') : null;
+    if (btn) toggleComments(btn);
+  }
+
+  /* ---- 发一条 ---- */
+
+  function onSubmitComment(e) {
+    var form = e.target;
+    if (!form || !form.classList || !form.classList.contains('pub-cform')) return;
+    e.preventDefault();
+    sendComment(form);
+  }
+
+  function sendComment(form) {
+    var scope = form.getAttribute('data-scope') || 'diary';
+    var target = form.getAttribute('data-target') || '';
+    var nameEl = form.querySelector('.pub-input-name');
+    var textEl = form.querySelector('.pub-input-text');
+    var hpEl = form.querySelector('.hp-field');
+    var btn = form.querySelector('button[type="submit"]');
+
+    var content = (textEl.value || '').trim();
+    if (!content) { setFormMsg(form, '还没写内容', 'err'); textEl.focus(); return; }
+
+    var name = (nameEl.value || '').trim();
+    if (name) rememberName(name);
+
+    btn.disabled = true;
+    btn.textContent = '发送中…';
+    setFormMsg(form, '', '');
+
+    fetch(COMMENT_API, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        scope: scope,
+        target: target,
+        name: name,
+        content: content,
+        hp: hpEl ? hpEl.value : ''
+      })
+    })
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
+          return data;
+        });
+      })
+      .then(function (data) {
+        var created = data.comment;
+        textEl.value = '';
+        setFormMsg(form, '已发送', 'ok');
+        if (!created) return;       /* 蜜罐命中时服务端不返回内容，静静收场 */
+        insertComment(form, scope, target, created);
+      })
+      .catch(function (err) { setFormMsg(form, err.message || String(err), 'err'); })
+      .finally(function () {
+        btn.disabled = false;
+        btn.textContent = '发送';
+      });
+  }
+
+  /* 发完不重拉整个列表（省一次请求），直接把新那条插进该在的位置 */
+  function insertComment(form, scope, target, created) {
+    if (scope === 'board') {
+      var list = document.getElementById('board-list');
+      if (!list) return;
+      var empty = list.querySelector('.pub-state');
+      if (empty) empty.parentNode.removeChild(empty);
+      /* 留言簿是倒序（新的在最上面） */
+      list.insertAdjacentHTML('afterbegin', commentHtml(created, 'pub-board-item'));
+      return;
+    }
+
+    var box = form.closest ? form.closest('.pub-comments') : null;
+    if (!box) return;
+
+    var hint = box.querySelector('.pub-comments-hint');
+    if (hint) hint.parentNode.removeChild(hint);
+
+    /* 日记下的留言是正序（老的在上），所以插在表单前面 = 接在最末 */
+    form.insertAdjacentHTML('beforebegin', commentHtml(created));
+
+    var n = (parseInt(box.getAttribute('data-count'), 10) || 0) + 1;
+    box.setAttribute('data-count', n);
+    var label = box.querySelector('.pub-comments-label');
+    if (label) label.textContent = n + ' 条留言';
+    commentCounts[target] = n;
+    if (commentCache[target]) commentCache[target].push(created);
+  }
+
+  /* ---- 每篇日记的留言数：一次查完，别一篇一个请求 ---- */
+
+  function loadCommentCounts() {
+    fetch(COMMENT_API + '?counts=1', { headers: { accept: 'application/json' } })
+      .then(function (res) { return res.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        if (data && data.needTable) { hideAllComments(); return; }
+        commentCounts = (data && data.counts) || {};
+        applyCommentCounts();
+      })
+      .catch(function () { /* 拿不到条数不影响看日记，保持「留言」两个字 */ });
+  }
+
+  /* 条数是后到的：把先前占位的「-1」补成真实数字 */
+  function applyCommentCounts() {
+    Array.prototype.forEach.call(document.querySelectorAll('.pub-comments[data-date]'), function (box) {
+      if (box.getAttribute('data-count') !== '-1') return;
+      var n = commentCounts[box.getAttribute('data-date')] || 0;
+      box.setAttribute('data-count', n);
+      var label = box.querySelector('.pub-comments-label');
+      if (label && n) label.textContent = n + ' 条留言';
+    });
+  }
+
+  /* 留言表还没建：整块藏掉。访客看到的是「正常但没留言功能」，不是坏掉 */
+  function hideAllComments() {
+    commentBlocked = true;
+    Array.prototype.forEach.call(document.querySelectorAll('.pub-comments'), function (el) {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+  }
+
+  /* ---- 留言簿 ---- */
+
+  function renderBoard() {
+    var body = document.getElementById('board-body');
+    if (!body) return;
+    /* 已经建过就不重建 —— 切走再切回来要保留滚动位置和已加载的列表 */
+    if (boardInited) return;
+
+    body.innerHTML =
+      '<div class="pub-board-top">' +
+        '<div class="pub-board-title">留言簿</div>' +
+        '<div class="pub-board-desc">不看日记也想说点什么，就写这儿。</div>' +
+        formHtml('board', '') +
+      '</div>' +
+      '<div id="board-list" class="pub-board-list"><div class="pub-state">正在读取…</div></div>' +
+      '<div class="pub-more-wrap hidden" id="board-more-wrap">' +
+        '<button class="pub-more" id="board-more">加载更早的留言</button>' +
+      '</div>';
+
+    boardInited = true;
+
+    var more = document.getElementById('board-more');
+    if (more) more.addEventListener('click', function () { loadBoard(false); });
+
+    loadBoard(true);
+  }
+
+  function loadBoard(reset) {
+    if (boardLoading) return;
+    var list = document.getElementById('board-list');
+    if (!list) return;
+
+    if (reset) boardOffset = 0;
+    boardLoading = true;
+
+    var btn = document.getElementById('board-more');
+    if (btn && !reset) { btn.disabled = true; btn.textContent = '加载中…'; }
+
+    fetch(COMMENT_API + '?scope=board&limit=' + BOARD_PAGE + '&offset=' + boardOffset, { headers: { accept: 'application/json' } })
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
+          return data;
+        });
+      })
+      .then(function (data) {
+        if (data.needTable) {
+          list.innerHTML = stateHtml('留言功能还没启用', '站主还没把留言表建起来');
+          return;
+        }
+
+        var items = data.comments || [];
+        if (reset) list.innerHTML = '';
+
+        if (!items.length && boardOffset === 0) {
+          list.innerHTML = stateHtml('还没有留言', '来说第一句吧');
+        } else if (items.length) {
+          /* 留言簿倒序：第一页是最新的，往下翻是更早的，所以新数据接在末尾 */
+          list.insertAdjacentHTML('beforeend', items.map(function (c) {
+            return commentHtml(c, 'pub-board-item');
+          }).join(''));
+        }
+
+        boardOffset += items.length;
+
+        var wrap = document.getElementById('board-more-wrap');
+        if (wrap) wrap.classList.toggle('hidden', !data.hasMore);
+      })
+      .catch(function (err) {
+        if (boardOffset === 0) list.innerHTML = stateHtml('没能读到留言', err.message || String(err));
+      })
+      .finally(function () {
+        boardLoading = false;
+        if (btn) { btn.disabled = false; btn.textContent = '加载更早的留言'; }
+      });
+  }
+
+  /* =========================================================
+     其他三类数据的加载与切换
+     ========================================================= */
   function paintDoc(tab) {
     if (!docs) return;
     if (tab === 'study') renderStudy(docs.study);
@@ -649,7 +990,15 @@
       b.classList.toggle('active', b.getAttribute('data-tab') === tab);
     });
 
-    if (tab !== 'diary') {
+    if (tab === 'board') {
+      /* 留言簿的数据不走 /api/doc，自己拉，别把 doc 那套带上 */
+      if (commentBlocked) {
+        var b = document.getElementById('board-body');
+        if (b && !b.innerHTML) b.innerHTML = stateHtml('留言功能还没启用', '站主还没把留言表建起来');
+      } else {
+        renderBoard();
+      }
+    } else if (tab !== 'diary') {
       /* 命中缓存也要重画 —— 面板是切一次画一次，
          少了 paintDoc 这条分支，第二个被点开的板块会是空白。 */
       if (docLoaded) paintDoc(tab);
@@ -722,6 +1071,19 @@
       box.addEventListener('click', onFoldClick);
       box.addEventListener('keydown', onFoldKey);
     });
+
+    /* 留言区也是渲染出来的：开合和提交都走委托。
+       注意监听挂在 #pub-timeline / #board-body 上（这两个容器本身不会被替换），
+       而不是挂在会重建的留言块上。 */
+    ['pub-timeline', 'board-body'].forEach(function (id) {
+      var box = document.getElementById(id);
+      if (!box) return;
+      box.addEventListener('click', onCommentClick);
+      box.addEventListener('submit', onSubmitComment);
+    });
+
+    /* 留言数单独拉：条数是后到的，先渲染日记再补数字，别为了一行数字让整页等着 */
+    loadCommentCounts();
 
     loadDiary();
   });

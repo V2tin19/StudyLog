@@ -13,36 +13,18 @@
  * 注意：这里才是真正的关卡。前端隐藏按钮只是 UI 效果，不能当权限用。
  */
 
-import { toEntry, json, dbMissing, safeEqual, isValidDate } from '../_shared.js';
+import { toEntry, json, dbMissing, isValidDate, requireAdmin } from '../_shared.js';
 
 const MAX_BATCH = 500;        // 一次最多几条
 const CHUNK = 30;             // 每个 batch 语句包几条，避免单次 SQL 过大
 const MAX_CONTENT = 200000;   // 单篇正文最大字符数
-
-/** 校验令牌，返回 null 表示通过，否则返回错误响应 */
-function deny(request, env) {
-  const expected = env.ADMIN_TOKEN;
-  if (!expected) {
-    return json(
-      { error: '服务端还没有设置 ADMIN_TOKEN 环境变量，请在 Pages 项目设置里添加后再试' },
-      500,
-      { 'cache-control': 'no-store' }
-    );
-  }
-  const header = request.headers.get('Authorization') || '';
-  const provided = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-  if (!provided || !safeEqual(provided, expected)) {
-    return json({ error: '令牌不正确，无权操作' }, 401, { 'cache-control': 'no-store' });
-  }
-  return null;
-}
 
 const NO_STORE = { 'cache-control': 'no-store' };
 
 /* ---------------- GET：验证令牌 + 拉取云端数据 ---------------- */
 export async function onRequestGet({ env, request }) {
   if (!env.DB) return dbMissing();
-  const rejected = deny(request, env);
+  const rejected = requireAdmin(request, env);
   if (rejected) return rejected;
 
   const { results } = await env.DB
@@ -55,7 +37,7 @@ export async function onRequestGet({ env, request }) {
 /* ---------------- POST：写入 / 更新 ---------------- */
 export async function onRequestPost({ env, request }) {
   if (!env.DB) return dbMissing();
-  const rejected = deny(request, env);
+  const rejected = requireAdmin(request, env);
   if (rejected) return rejected;
 
   let body;
@@ -151,7 +133,7 @@ export async function onRequestPost({ env, request }) {
 /* ---------------- DELETE：删除某一天 ---------------- */
 export async function onRequestDelete({ env, request }) {
   if (!env.DB) return dbMissing();
-  const rejected = deny(request, env);
+  const rejected = requireAdmin(request, env);
   if (rejected) return rejected;
 
   const date = (new URL(request.url).searchParams.get('date') || '').trim();
