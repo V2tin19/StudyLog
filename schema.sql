@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS diary (date TEXT PRIMARY KEY, content TEXT NOT NULL D
 CREATE INDEX IF NOT EXISTS idx_diary_order ON diary(pinned DESC, date DESC);
 CREATE TABLE IF NOT EXISTS site_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '');
-INSERT OR IGNORE INTO site_meta (key, value) VALUES ('site_title', '果冻的成长记录');
+INSERT OR IGNORE INTO site_meta (key, value) VALUES ('site_title', '学习日报');
 INSERT OR IGNORE INTO site_meta (key, value) VALUES ('owner_name', '果冻');
 INSERT OR IGNORE INTO site_meta (key, value) VALUES ('announcement', '');
 
@@ -68,5 +68,30 @@ CREATE TABLE IF NOT EXISTS book_suggestions (
 CREATE INDEX IF NOT EXISTS idx_suggest_status ON book_suggestions(status, id);
 -- 限流：同 IP 最近一分钟
 CREATE INDEX IF NOT EXISTS idx_suggest_ip ON book_suggestions(ip_hash, created_at);
+
+-- ============================================================
+-- 目标推荐（第三个访客能写的功能）
+--
+-- 跟上面的书目荐读是同一套流程：访客推荐 → 待审 → 通过 → 自动进目标清单。
+-- 字段**刻意跟 book_suggestions 一模一样** —— 目标没有「作者」这一栏，
+-- author 恒为空串。用一列换后端「一个 if 分支都不用写」，很划算。
+-- 后端的公用实现在 functions/api/_suggest.js，前端在 js/modules/suggestions.js。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS goal_suggestions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  title       TEXT    NOT NULL,
+  author      TEXT    NOT NULL DEFAULT '',
+  note        TEXT    NOT NULL DEFAULT '',
+  name        TEXT    NOT NULL DEFAULT '',
+  status      TEXT    NOT NULL DEFAULT 'pending',
+  created_at  TEXT    NOT NULL,
+  decided_at  TEXT    NOT NULL DEFAULT '',
+  imported_at TEXT    NOT NULL DEFAULT '',
+  ip_hash     TEXT    NOT NULL DEFAULT ''
+);
+-- 公开页只读 approved（按 id 倒序）
+CREATE INDEX IF NOT EXISTS idx_gsuggest_status ON goal_suggestions(status, id);
+-- 限流：同 IP 最近一分钟
+CREATE INDEX IF NOT EXISTS idx_gsuggest_ip ON goal_suggestions(ip_hash, created_at);
 
 SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;

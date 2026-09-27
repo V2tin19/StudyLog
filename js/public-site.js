@@ -1,7 +1,7 @@
 /* ============================================
    Public Site - 公开页
-   五个板块：日记 / 学习 / 日程 / 目标 / 留言
-   访客能留言、能荐书；改站主内容的写权限全在服务端。
+   五个板块：日记 / 阅读 / 日程 / 目标 / 留言
+   访客能留言、能荐书、能荐目标；改站主内容的写权限全在服务端。
    ============================================ */
 
 (function () {
@@ -9,7 +9,7 @@
 
   var API = '/api/diary';
   var DOC_API = '/api/doc';
-  var PAGE_SIZE = 30;
+  var PAGE_SIZE = 15;   /* 跟写作台时间线一致 */
   var THEME_KEY = 'studylog_public_theme';
 
   var DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -28,9 +28,11 @@
     irritated: { label: '烦躁', color: '#c97a7a' }
   };
 
-  /* 日记分页状态 */
-  var offset = 0;
-  var lastBatch = 0;      /* 上一批实际拿到几条 —— 用来判断还有没有更早的 */
+  /* 日记翻页状态。跟写作台时间线同一套：上一页 / n / 下一页，不做无限滚动。
+     分母得从服务端要（/api/diary 返回的 total，是**当前筛选条件下**的条数）——
+     只靠「上一批装满一页」判断的话，摆不出「3 / 12」这种页码。 */
+  var page = 1;
+  var totalPages = 1;
   var loading = false;
   var firstLoad = true;
 
@@ -111,16 +113,17 @@
     }).join('') + '</div>';
   }
 
-  /* 名单型的一行（在读的书、在学的技能、最近的学习记录）。
-     opts: { title, sub, value, badge, dot, logs, tag }
+  /* 名单型的一行（在读的书、技能、最近的学习记录）。
+     opts: { title, sub, value, badge, done, dot, logs, tag }
      badge 传了就显示一个胶囊标签（已读 / 已掌握），圆点同时变绿 —— 扫一眼就分得出完成与否；
-     tag 是「谁推荐的」小标签，只有书目荐读进来的书才有；
+     done 只上「完成」的样式、不挂胶囊，给已经整体收进「已读」折叠的行用（那里再挂一次纯属噪音）；
+     tag 是「谁推荐的」小标签，只有荐读 / 目标推荐进来的条目才有；
      logs 非空则整行可展开，点标题行看跟进记录（跟目标卡同一套交互）。 */
   function plainRow(opts) {
     var o = opts || {};
     var logs = Array.isArray(o.logs) ? o.logs.slice().reverse() : [];
     var hasLogs = logs.length > 0;
-    var done = !!o.badge;
+    var done = !!(o.badge || o.done);
 
     return '<div class="pub-row' +
         (o.dot ? ' pub-row-dot' : '') +
@@ -135,7 +138,7 @@
           (o.sub ? '<div class="pub-row-sub">' + esc(o.sub) + '</div>' : '') +
         '</div>' +
         (o.value ? '<div class="pub-row-value">' + esc(o.value) + '</div>' : '') +
-        (done ? '<span class="pub-row-badge">' + esc(o.badge) + '</span>' : '') +
+        (o.badge ? '<span class="pub-row-badge">' + esc(o.badge) + '</span>' : '') +
         (hasLogs ? '<span class="pub-row-meta">' + logs.length + ' 条跟进</span>' : '') +
         (hasLogs ? '<span class="pub-row-caret" aria-hidden="true">›</span>' : '') +
       '</div>' +
@@ -201,29 +204,31 @@
   function showDiaryError(msg) {
     var tl = document.getElementById('pub-timeline');
     if (!tl) return;
-
-    if (offset === 0) {
-      var hero = document.getElementById('pub-hero');
-      if (hero) hero.innerHTML = '';
-      var more = document.getElementById('pub-more-wrap');
-      if (more) more.classList.add('hidden');
-      tl.innerHTML = stateHtml('没能读到记录', msg);
-      return;
-    }
-
-    var tip = document.createElement('div');
-    tip.className = 'pub-state';
-    tip.textContent = '加载失败：' + msg;
-    tl.appendChild(tip);
+    tl.innerHTML = stateHtml('没能读到记录', msg);
   }
 
-  function updateMoreButton() {
-    var wrap = document.getElementById('pub-more-wrap');
-    if (!wrap) return;
-    /* 上一批装满了一页 → 可能还有更早的；不满 → 到底了。
-       用这个判断而不是比对总数，是因为筛选后的总数接口不返回。 */
-    if (lastBatch >= PAGE_SIZE) wrap.classList.remove('hidden');
-    else wrap.classList.add('hidden');
+  function renderPager() {
+    var box = document.getElementById('pub-pagination');
+    if (!box) return;
+    if (totalPages <= 1) { box.innerHTML = ''; return; }
+
+    box.innerHTML =
+      '<div class="pub-pager">' +
+        '<button class="pub-page-btn" data-goto="' + (page - 1) + '"' +
+          (page <= 1 ? ' disabled' : '') + '>上一页</button>' +
+        '<span class="pub-page-info">' + page + ' / ' + totalPages + '</span>' +
+        '<button class="pub-page-btn" data-goto="' + (page + 1) + '"' +
+          (page >= totalPages ? ' disabled' : '') + '>下一页</button>' +
+      '</div>';
+  }
+
+  function setPage(p) {
+    if (!(p >= 1) || p > totalPages || p === page) return;
+    page = p;
+    var tl = document.getElementById('pub-timeline');
+    if (tl) tl.innerHTML = '<div class="pub-state">正在读取…</div>';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    loadDiary();
   }
 
   /* ---------- 日记筛选条（年份 / 月份） ---------- */
@@ -270,15 +275,14 @@
     box.classList.toggle('filtering', !!(filterYear || filterMonth));
   }
 
-  /* 改了筛选条件：清空列表重新从第一页拉 */
+  /* 改了筛选条件：回到第一页重拉 */
   function resetAndReload() {
-    offset = 0;
-    lastBatch = 0;
+    page = 1;
     firstLoad = true;
     var tl = document.getElementById('pub-timeline');
     if (tl) tl.innerHTML = '<div class="pub-state">正在读取…</div>';
-    var more = document.getElementById('pub-more-wrap');
-    if (more) more.classList.add('hidden');
+    var pag = document.getElementById('pub-pagination');
+    if (pag) pag.innerHTML = '';
     loadDiary();
   }
 
@@ -308,7 +312,7 @@
   }
 
   function diaryUrl() {
-    var url = API + '?limit=' + PAGE_SIZE + '&offset=' + offset;
+    var url = API + '?limit=' + PAGE_SIZE + '&offset=' + ((page - 1) * PAGE_SIZE);
     if (filterYear) url += '&year=' + encodeURIComponent(filterYear);
     if (filterMonth) url += '&month=' + encodeURIComponent(filterMonth);
     return url;
@@ -317,12 +321,6 @@
   function loadDiary() {
     if (loading) return;
     loading = true;
-
-    var btn = document.getElementById('pub-more');
-    if (btn && !firstLoad) {
-      btn.disabled = true;
-      btn.textContent = '加载中…';
-    }
 
     fetch(diaryUrl(), { headers: { accept: 'application/json' } })
       .then(function (res) {
@@ -335,64 +333,65 @@
         var tl = document.getElementById('pub-timeline');
         var entries = data.entries || [];
 
+        /* total 是当前筛选条件下的条数（不是 stats.total，那个永远是全部）。
+           服务端万一没给，就退化成「只有这一页」，至少页码不会乱。 */
+        var total = typeof data.total === 'number' ? data.total : entries.length;
+        totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        if (page > totalPages) page = totalPages;
+
+        var filtering = !!(filterYear || filterMonth);
+
         if (firstLoad) {
-          tl.innerHTML = '';
           renderStats(data.stats);
           buildFilter(data.stats);
         }
 
-        var filtering = !!(filterYear || filterMonth);
-
-        if (entries.length === 0 && offset === 0) {
+        if (!entries.length) {
           tl.innerHTML = filtering
             ? stateHtml('这个范围里没有记录')
             : stateHtml('还没有记录');
-        } else if (entries.length) {
-          tl.insertAdjacentHTML('beforeend', entries.map(entryHtml).join(''));
+        } else {
+          tl.innerHTML = entries.map(entryHtml).join('');
+          /* 留言条数是单独一路拉回来的（先渲染日记、后补数字）。
+             翻页会整块重画，所以要把已经拿到的数字补回去。 */
+          applyCommentCounts();
         }
 
-        offset += entries.length;
-        lastBatch = entries.length;
         firstLoad = false;
-        updateMoreButton();
+        renderPager();
       })
       .catch(function (err) { showDiaryError(err.message || String(err)); })
-      .finally(function () {
-        loading = false;
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = '加载更早的记录';
-        }
-      });
+      .finally(function () { loading = false; });
   }
 
   /* =========================================================
-     学习
+     阅读
      ========================================================= */
 
-  /* 一列（书 / 技能）：进行中的排前面，已完成的沉底并挂上胶囊标签。
-     字段名对账：书是 title，技能是 name，两边备注都叫 notes。 */
-  function studyCol(title, list, doneBadge, titleOf) {
-    var sorted = list.filter(function (x) { return x.status !== 'done'; })
-      .concat(list.filter(function (x) { return x.status === 'done'; }));
+  /* 一本书一行。字段名对账：书是 title，备注叫 notes（没有 author 这个字段）。 */
+  function bookRow(b, isDone) {
+    return plainRow({
+      title: b.title,
+      sub: b.notes,
+      dot: true,
+      done: !!isDone,
+      logs: b.logs,
+      /* from 是书目荐读留下的印记：这本书是谁推荐的 */
+      tag: b.from ? b.from + ' 推荐' : ''
+    });
+  }
 
-    if (!sorted.length) {
-      return '<div class="pub-col"><div class="pub-col-title">' + esc(title) + '</div>' +
-        '<div class="pub-col-empty">还没有</div></div>';
+  /* 在读的书排两列 —— 上下各占一整行太费纵向空间。
+     只有一两本的时候就别硬分栏了，单列反而更齐。 */
+  function bookCols(list) {
+    if (list.length <= 1) {
+      return '<div class="pub-list">' + list.map(function (b) { return bookRow(b, false); }).join('') + '</div>';
     }
-
-    return '<div class="pub-col"><div class="pub-col-title">' + esc(title) + '</div>' +
-      '<div class="pub-list">' + sorted.map(function (x) {
-        return plainRow({
-          title: titleOf(x),
-          sub: x.notes,
-          badge: x.status === 'done' ? doneBadge : '',
-          dot: true,
-          logs: x.logs,
-          /* from 是书目荐读留下的印记：这本书是谁推荐的 */
-          tag: x.from ? x.from + ' 推荐' : ''
-        });
-      }).join('') + '</div></div>';
+    var half = Math.ceil(list.length / 2);
+    return '<div class="pub-cols">' +
+      '<div class="pub-list">' + list.slice(0, half).map(function (b) { return bookRow(b, false); }).join('') + '</div>' +
+      '<div class="pub-list">' + list.slice(half).map(function (b) { return bookRow(b, false); }).join('') + '</div>' +
+    '</div>';
   }
 
   function renderStudy(doc) {
@@ -402,16 +401,18 @@
     var d = (doc && doc.data) || {};
     var sessions = Array.isArray(d.sessions) ? d.sessions : [];
     var books = Array.isArray(d.books) ? d.books : [];
-    var skills = Array.isArray(d.skills) ? d.skills : [];
+
+    var reading = books.filter(function (b) { return b.status !== 'done'; });
+    var read = books.filter(function (b) { return b.status === 'done'; });
 
     var html = '';
 
-    if (!sessions.length && !books.length && !skills.length) {
-      /* ⚠️ 这里以前是直接 return 的。改成往下走，因为荐读区得照常出现 ——
-         站主自己没记学习数据，不代表访客就不能荐书。 */
-      html += stateHtml('还没有学习记录');
+    if (!sessions.length && !books.length) {
+      /* ⚠️ 这里不能直接 return —— 荐读区得照常出现。
+         站主自己没记阅读数据，不代表访客就不能荐书。 */
+      html += stateHtml('还没有记录');
     } else {
-      /* 最近记录压在两列上面，横跨整宽 */
+      /* 最近记录压在最上面，横跨整宽 */
       var recent = sessions.slice()
         .sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); })
         .slice(0, 8);
@@ -428,14 +429,19 @@
         html += '</div></div>';
       }
 
-      /* 书籍 / 技能并排两列。哪一列空着也不塌 —— 留一句话占位，左右保持对称。
-         进度条整体去掉：书籍和技能的数据里根本没有 progress 字段，
-         之前那根永远是 0% 的空条，纯属噪音。 */
-      if (books.length || skills.length) {
-        html += '<div class="pub-section"><div class="pub-cols">' +
-          studyCol('书籍', books, '已读', function (b) { return b.title; }) +
-          studyCol('技能', skills, '已掌握', function (s) { return s.name; }) +
-        '</div></div>';
+      /* 在读的书：两列 */
+      html += '<div class="pub-section"><div class="pub-section-title">在读 · ' + reading.length + '</div>' +
+        (reading.length ? bookCols(reading) : '<div class="pub-col-empty">还没有</div>') +
+      '</div>';
+
+      /* 已读的书：整块收起来。书单会越攒越长，读完的那些不该把在读的挤到屏幕外。
+         ⚠️ 注意这里跟 sessions 无关 —— 全读完了也要照常出现。 */
+      if (read.length) {
+        html += '<details class="pub-fold"><summary>已读 · ' + read.length + '</summary>' +
+          '<div class="pub-fold-body"><div class="pub-list">' +
+            read.map(function (b) { return bookRow(b, true); }).join('') +
+          '</div></div>' +
+        '</details>';
       }
     }
 
@@ -449,154 +455,195 @@
   }
 
   /* =========================================================
-     书目荐读
-     访客推荐 → 站主在写作台审 → 通过后进站主书单。
-     这里只管「提交」和「看已采纳的」两件事。
+     推荐区（书目荐读 / 目标推荐）
+
+     两处共用同一套零件：访客提交 → 站主在写作台审 → 通过了才上墙。
+     差别只有文案、以及书多一个「作者」输入框。
+     状态每个实例各一份，所以用一个小工厂 + 闭包，而不是把变量名
+     拼成一堆 suggestXxx / gsuggestXxx —— 那样改一处必漏另一处。
      ========================================================= */
 
-  var SUGGEST_API = '/api/suggestions';
-  var suggestItems = null;      /* null = 还没拉到 */
-  var suggestBlocked = false;   /* 表还没建：整块不出现 */
-  var suggestInited = false;
-  var suggestLoading = false;
+  function makeSuggester(cfg) {
+    var items = null;      /* null = 还没拉到 */
+    var blocked = false;   /* 表还没建：整块不出现，别给访客看坏掉的东西 */
+    var inited = false;
+    var loading = false;
 
-  function suggestFormHtml() {
-    return '<form class="pub-sform">' +
-      '<div class="pub-sform-row">' +
-        '<input class="input pub-suggest-title" name="title" maxlength="60" autocomplete="off" placeholder="书名">' +
-        '<input class="input pub-suggest-author" name="author" maxlength="40" autocomplete="off" placeholder="作者（可不填）">' +
-      '</div>' +
-      '<textarea class="textarea pub-suggest-note" name="note" maxlength="200" placeholder="为什么推荐它？（可不填，一句话就够）"></textarea>' +
-      '<div class="pub-sform-row pub-sform-send">' +
-        '<input class="input pub-input-name" name="name" maxlength="24" autocomplete="off" ' +
-          'placeholder="昵称" value="' + esc(savedName()) + '">' +
-        '<button class="btn btn-sm btn-primary" type="submit">推荐</button>' +
-      '</div>' +
-      /* 蜜罐：跟留言同一个手法。正常访客看不见，只有机器人会填。 */
-      '<input class="hp-field" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' +
-      '<div class="pub-sform-msg"></div>' +
-      '<div class="pub-cform-note">站主看到之后挑着加进书单，通过了你就能在上面看到 · 一分钟最多 3 本 · 不能带链接</div>' +
-    '</form>';
-  }
-
-  function suggestRowHtml(it) {
-    return '<div class="pub-suggest-item">' +
-      '<div class="pub-comment-av">' + esc(nameInitial(it.name)) + '</div>' +
-      '<div class="pub-suggest-main">' +
-        '<div class="pub-suggest-book">《' + esc(it.title) + '》' +
-          (it.author ? '<span class="pub-suggest-author">' + esc(it.author) + '</span>' : '') +
-        '</div>' +
-        (it.note ? '<div class="pub-suggest-note">' + esc(it.note) + '</div>' : '') +
-        '<div class="pub-comment-head"><span class="pub-comment-name">' +
-          esc(it.name || '访客') + '</span> · ' + esc(shortTime(it.createdAt)) + '</div>' +
-      '</div>' +
-    '</div>';
-  }
-
-  /* 把 #pub-suggest 整块画出来。切 tab 回来时是拿缓存重画的，不会再请求一次。 */
-  function renderSuggest() {
-    var box = document.getElementById('pub-suggest');
-    if (!box) return;
-
-    if (suggestBlocked) { box.innerHTML = ''; return; }
-
-    var wall;
-    if (suggestItems === null) {
-      wall = '<div class="pub-state">正在读取…</div>';
-    } else if (!suggestItems.length) {
-      wall = '<div class="pub-col-empty">还没有人推荐过书，来当第一个</div>';
-    } else {
-      wall = '<div class="pub-suggest-list">' + suggestItems.map(suggestRowHtml).join('') + '</div>';
+    function msg(form, text, type) {
+      var el = form.querySelector('.pub-sform-msg');
+      if (!el) return;
+      el.className = 'pub-sform-msg' + (type ? ' ' + type : '');
+      el.textContent = text || '';
     }
 
-    box.innerHTML =
-      '<div class="pub-section">' +
-        '<div class="pub-section-title">书目荐读</div>' +
-        '<div class="pub-suggest-desc">读过觉得值得一读的书，写在这里。站主会挑着加进书单。</div>' +
-        suggestFormHtml() +
-        wall +
+    /* 说明文字压到只剩一句「通过后展示」—— 这站的字都很省。
+       表单里本来就没有作者栏的（目标），加 pub-sform-solo 让标题框独占一行。 */
+    function formHtml() {
+      return '<form class="pub-sform' + (cfg.solo ? ' pub-sform-solo' : '') + '">' +
+        '<div class="pub-sform-row">' +
+          '<input class="input pub-suggest-title" name="title" maxlength="60" autocomplete="off" ' +
+            'placeholder="' + esc(cfg.titlePh) + '">' +
+          (cfg.solo ? '' :
+            '<input class="input pub-suggest-author" name="author" maxlength="40" autocomplete="off" placeholder="作者（可不填）">') +
+        '</div>' +
+        '<textarea class="textarea pub-suggest-note" name="note" maxlength="200" ' +
+          'placeholder="推荐理由（可不填）"></textarea>' +
+        '<div class="pub-sform-row pub-sform-send">' +
+          '<input class="input pub-input-name" name="name" maxlength="24" autocomplete="off" ' +
+            'placeholder="昵称" value="' + esc(savedName()) + '">' +
+          '<button class="btn btn-sm btn-primary" type="submit">推荐</button>' +
+        '</div>' +
+        /* 蜜罐：跟留言同一个手法。正常访客看不见，只有机器人会填。 */
+        '<input class="hp-field" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+        '<div class="pub-sform-msg"></div>' +
+        '<div class="pub-cform-note">通过后展示</div>' +
+      '</form>';
+    }
+
+    function rowHtml(it) {
+      return '<div class="pub-suggest-item">' +
+        '<div class="pub-comment-av">' + esc(nameInitial(it.name)) + '</div>' +
+        '<div class="pub-suggest-main">' +
+          '<div class="pub-suggest-book">' + esc(cfg.quote(it.title)) +
+            (it.author ? '<span class="pub-suggest-author">' + esc(it.author) + '</span>' : '') +
+          '</div>' +
+          (it.note ? '<div class="pub-suggest-note">' + esc(it.note) + '</div>' : '') +
+          '<div class="pub-comment-head"><span class="pub-comment-name">' +
+            esc(it.name || '访客') + '</span> · ' + esc(shortTime(it.createdAt)) + '</div>' +
+        '</div>' +
       '</div>';
-  }
+    }
 
-  function loadSuggest() {
-    if (suggestInited || suggestLoading || suggestBlocked) return;
-    suggestLoading = true;
+    /* 把容器整块画出来。切 tab 回来时是拿缓存重画的，不会再请求一次。 */
+    function render() {
+      var box = document.getElementById(cfg.boxId);
+      if (!box) return;
+      if (blocked) { box.innerHTML = ''; return; }
 
-    fetch(SUGGEST_API + '?limit=100', { headers: { accept: 'application/json' } })
-      .then(function (res) { return res.json().catch(function () { return {}; }); })
-      .then(function (data) {
-        /* 表没建时接口返回 200 + needTable，不报错 —— 学习页本身是好的，
-           只是不该给访客看一块空壳子，所以整块撤掉。 */
-        if (data && data.needTable) suggestBlocked = true;
-        else suggestItems = (data && data.items) || [];
-        suggestInited = true;
-      })
-      .catch(function () {
-        /* 拉不到不影响看学习页：把墙画成空的，表单还能用 */
-        suggestItems = [];
-        suggestInited = true;
-      })
-      .finally(function () {
-        suggestLoading = false;
-        renderSuggest();
-      });
-  }
+      var wall;
+      if (items === null) {
+        wall = '<div class="pub-state">正在读取…</div>';
+      } else if (!items.length) {
+        wall = '<div class="pub-col-empty">还没有</div>';
+      } else {
+        wall = '<div class="pub-suggest-list">' + items.map(rowHtml).join('') + '</div>';
+      }
 
-  function setSFormMsg(form, text, type) {
-    var el = form.querySelector('.pub-sform-msg');
-    if (!el) return;
-    el.className = 'pub-sform-msg' + (type ? ' ' + type : '');
-    el.textContent = text;
-  }
+      box.innerHTML = '<div class="pub-section">' +
+        '<div class="pub-section-title">' + esc(cfg.sectionTitle) + '</div>' +
+        formHtml() + wall +
+      '</div>';
+    }
 
-  function sendSuggestion(form) {
-    var titleEl = form.querySelector('.pub-suggest-title');
-    var authorEl = form.querySelector('.pub-suggest-author');
-    var noteEl = form.querySelector('.pub-suggest-note');
-    var nameEl = form.querySelector('.pub-input-name');
-    var hpEl = form.querySelector('.hp-field');
-    var btn = form.querySelector('button[type="submit"]');
+    function load() {
+      if (inited || loading || blocked) return;
+      loading = true;
 
-    var title = (titleEl.value || '').trim();
-    if (!title) { setSFormMsg(form, '还没写书名', 'err'); titleEl.focus(); return; }
-
-    var name = (nameEl.value || '').trim();
-    if (name) rememberName(name);
-
-    btn.disabled = true;
-    btn.textContent = '提交中…';
-    setSFormMsg(form, '', '');
-
-    fetch(SUGGEST_API, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        title: title,
-        author: (authorEl.value || '').trim(),
-        note: (noteEl.value || '').trim(),
-        name: name,
-        hp: hpEl ? hpEl.value : ''
-      })
-    })
-      .then(function (res) {
-        return res.json().catch(function () { return {}; }).then(function (data) {
-          if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
-          return data;
+      fetch(cfg.api + '?limit=100', { headers: { accept: 'application/json' } })
+        .then(function (res) { return res.json().catch(function () { return {}; }); })
+        .then(function (data) {
+          /* 表没建时接口返回 200 + needTable，不报错 —— 页面本身是好的，
+             只是不该给访客看一块空壳子，所以整块撤掉。 */
+          if (data && data.needTable) blocked = true;
+          else items = (data && data.items) || [];
+          inited = true;
+        })
+        .catch(function () {
+          /* 拉不到不影响看页面：把墙画成空的，表单还能用 */
+          items = [];
+          inited = true;
+        })
+        .finally(function () {
+          loading = false;
+          render();
         });
+    }
+
+    function send(form) {
+      var titleEl = form.querySelector('.pub-suggest-title');
+      var authorEl = form.querySelector('.pub-suggest-author');
+      var noteEl = form.querySelector('.pub-suggest-note');
+      var nameEl = form.querySelector('.pub-input-name');
+      var hpEl = form.querySelector('.hp-field');
+      var btn = form.querySelector('button[type="submit"]');
+
+      var title = (titleEl.value || '').trim();
+      if (!title) { msg(form, '还没写' + cfg.titlePh, 'err'); titleEl.focus(); return; }
+
+      var name = (nameEl.value || '').trim();
+      if (name) rememberName(name);
+
+      btn.disabled = true;
+      btn.textContent = '提交中…';
+      msg(form, '', '');
+
+      fetch(cfg.api, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: title,
+          author: authorEl ? (authorEl.value || '').trim() : '',
+          note: (noteEl.value || '').trim(),
+          name: name,
+          hp: hpEl ? hpEl.value : ''
+        })
       })
-      .then(function (data) {
-        titleEl.value = '';
-        authorEl.value = '';
-        noteEl.value = '';
-        /* 蜜罐命中时服务端不返回内容，静静收场，别给机器人反馈 */
-        setSFormMsg(form, '已提交，等站主看一看', 'ok');
-        if (!data.item) return;
-      })
-      .catch(function (err) { setSFormMsg(form, err.message || String(err), 'err'); })
-      .finally(function () {
-        btn.disabled = false;
-        btn.textContent = '推荐';
-      });
+        .then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
+            return data;
+          });
+        })
+        .then(function () {
+          titleEl.value = '';
+          if (authorEl) authorEl.value = '';
+          noteEl.value = '';
+          /* 蜜罐命中时服务端不返回内容，静静收场，别给机器人反馈 */
+          msg(form, '已提交', 'ok');
+        })
+        .catch(function (err) { msg(form, err.message || String(err), 'err'); })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = '推荐';
+        });
+    }
+
+    return { render: render, load: load, send: send };
+  }
+
+  var suggest = makeSuggester({
+    api: '/api/suggestions',
+    boxId: 'pub-suggest',
+    sectionTitle: '书目荐读',
+    titlePh: '书名',
+    quote: function (t) { return '《' + t + '》'; }
+  });
+
+  var gsuggest = makeSuggester({
+    api: '/api/goal-suggestions',
+    boxId: 'pub-gsuggest',
+    sectionTitle: '目标推荐',
+    titlePh: '目标',
+    solo: true,
+    quote: function (t) { return '「' + t + '」'; }
+  });
+
+  function renderSuggest() { suggest.render(); }
+  function loadSuggest() { suggest.load(); }
+  function renderGSuggest() { gsuggest.render(); }
+  function loadGSuggest() { gsuggest.load(); }
+
+  /* 两个推荐区的提交都走委托：监听挂在容器上（容器本身不会被替换），
+     跟留言是同一个套路。 */
+  function bindSuggestForm(boxId, s) {
+    var box = document.getElementById(boxId);
+    if (!box) return;
+    box.addEventListener('submit', function (e) {
+      var f = e.target;
+      if (!f || !f.classList || !f.classList.contains('pub-sform')) return;
+      e.preventDefault();
+      s.send(f);
+    });
   }
 
   /* =========================================================
@@ -691,7 +738,9 @@
       '<div class="pub-goal-head"' + headAttrs + '>' +
         '<span class="pub-goal-mark' + (g.done ? ' done' : '') + '">' + (g.done ? '✓' : '') + '</span>' +
         '<div class="pub-goal-main">' +
-          '<div class="pub-goal-name">' + esc(g.title || '未命名') + '</div>' +
+          '<div class="pub-goal-name">' + esc(g.title || '未命名') +
+            (g.from ? '<span class="from-tag">' + esc(g.from) + ' 推荐</span>' : '') +
+          '</div>' +
           (note.length ? '<div class="pub-goal-note">' + esc(note.join(' · ')) + '</div>' : '') +
         '</div>' +
         (hasLogs
@@ -703,30 +752,54 @@
     '</div>';
   }
 
+  /* 技能原来跟书籍并排在「阅读」页。阅读页现在只装书，技能挪到这儿 ——
+     目标和技能都是「我要变成什么样」，书籍是「我读了什么」，这么分更顺。
+     注意技能的数据并不在 doc.goals 里，它还在 doc.study，所以要从 docs.study 取。 */
+  function skillRow(s) {
+    return plainRow({
+      title: s.name,
+      sub: s.notes,
+      badge: s.status === 'done' ? '已掌握' : '',
+      dot: true,
+      logs: s.logs
+    });
+  }
+
   function renderGoals(doc) {
     var body = document.getElementById('goals-body');
     if (!body) return;
 
     var list = (doc && Array.isArray(doc.data)) ? doc.data : [];
-    if (!list.length) {
-      body.innerHTML = stateHtml('还没有目标');
-      return;
-    }
-
-    var doing = list.filter(function (g) { return !g.done; });
-    var done = list.filter(function (g) { return g.done; });
+    var studyData = (docs && docs.study && docs.study.data) || {};
+    var skills = Array.isArray(studyData.skills) ? studyData.skills : [];
     var html = '';
 
-    if (doing.length) {
-      html += '<div class="pub-section"><div class="pub-section-title">进行中 · ' + doing.length +
-        '</div><div class="pub-goals">' + doing.map(goalHtml).join('') + '</div></div>';
-    }
-    if (done.length) {
-      html += '<div class="pub-section"><div class="pub-section-title">已完成 · ' + done.length +
-        '</div><div class="pub-goals">' + done.map(goalHtml).join('') + '</div></div>';
+    if (!list.length && !skills.length) {
+      html += stateHtml('还没有目标');
+    } else {
+      var doing = list.filter(function (g) { return !g.done; });
+      var done = list.filter(function (g) { return g.done; });
+
+      if (doing.length) {
+        html += '<div class="pub-section"><div class="pub-section-title">进行中 · ' + doing.length +
+          '</div><div class="pub-goals">' + doing.map(goalHtml).join('') + '</div></div>';
+      }
+      if (done.length) {
+        html += '<div class="pub-section"><div class="pub-section-title">已完成 · ' + done.length +
+          '</div><div class="pub-goals">' + done.map(goalHtml).join('') + '</div></div>';
+      }
+      if (skills.length) {
+        html += '<div class="pub-section"><div class="pub-section-title">技能 · ' + skills.length +
+          '</div><div class="pub-list">' + skills.map(skillRow).join('') + '</div></div>';
+      }
     }
 
+    /* 目标推荐区放在最后，跟阅读页的荐读区对称 */
+    html += '<div id="pub-gsuggest"></div>';
+
     body.innerHTML = html;
+    renderGSuggest();
+    loadGSuggest();
   }
 
   /* =========================================================
@@ -1216,8 +1289,15 @@
     var tl = document.getElementById('pub-timeline');
     if (tl) tl.innerHTML = '<div class="pub-state">正在读取…</div>';
 
-    var more = document.getElementById('pub-more');
-    if (more) more.addEventListener('click', loadDiary);
+    /* 翻页按钮整块重建，所以监听挂在容器上（它本身不会被替换） */
+    var pag = document.getElementById('pub-pagination');
+    if (pag) {
+      pag.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('[data-goto]') : null;
+        if (!btn || btn.disabled) return;
+        setPage(parseInt(btn.getAttribute('data-goto'), 10));
+      });
+    }
 
     /* 筛选条每次都整块重建，所以监听挂在容器上（委托），不跟着重建丢 */
     var filter = document.getElementById('pub-filter');
@@ -1227,7 +1307,7 @@
     }
 
     /* 目标卡同理：卡片是渲染出来的，事件挂在容器上。
-       学习页的书 / 技能行也用同一套开关，所以两边都挂。 */
+       阅读页的书行、目标页的技能行也用同一套开关，所以两边都挂。 */
     ['goals-body', 'study-body'].forEach(function (id) {
       var box = document.getElementById(id);
       if (!box) return;
@@ -1248,17 +1328,10 @@
     /* 留言数单独拉：条数是后到的，先渲染日记再补数字，别为了一行数字让整页等着 */
     loadCommentCounts();
 
-    /* 荐读表单同理：挂在 #study-body 上（它本身不会被替换，
-       renderStudy 只换它的 innerHTML）。 */
-    var studyBox = document.getElementById('study-body');
-    if (studyBox) {
-      studyBox.addEventListener('submit', function (e) {
-        var f = e.target;
-        if (!f || !f.classList || !f.classList.contains('pub-sform')) return;
-        e.preventDefault();
-        sendSuggestion(f);
-      });
-    }
+    /* 推荐区的提交同理：挂在容器上（容器本身不会被替换，render 只换它的 innerHTML）。
+       阅读页的荐读、目标页的目标推荐，各挂一个。 */
+    bindSuggestForm('study-body', suggest);
+    bindSuggestForm('goals-body', gsuggest);
 
     loadDiary();
   });

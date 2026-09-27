@@ -109,7 +109,7 @@ export const BLOCKLIST_TABLE = 'comment_blocklist';
 
 /* 允许做限流查询的表。写成白名单而不是直接把表名拼进 SQL —— 
    虽然调用方全是内部常量，但把「表名」当参数传出去这件事本身就该有闸门。 */
-const RATE_TABLES = ['comments', 'book_suggestions'];
+const RATE_TABLES = ['comments', 'book_suggestions', 'goal_suggestions'];
 
 /** 表还没建的报错识别。D1 报的是 "no such table: xxx" */
 export function isMissingTable(err) {

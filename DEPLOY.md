@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFA
 ```
 
 ```sql
-INSERT OR IGNORE INTO site_meta (key, value) VALUES ('site_title', '果冻的成长记录');
+INSERT OR IGNORE INTO site_meta (key, value) VALUES ('site_title', '学习日报');
 ```
 
 ```sql

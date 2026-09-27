@@ -212,43 +212,56 @@ const Extras = {
 
   /* ==========================================
      目标清单页面
+
+     这一页现在装三样东西：目标清单、技能清单、目标推荐（审核卡）。
+     技能原来在「学习」页，跟书籍并排；书页改叫「阅读」之后技能放这儿更顺 ——
+     目标和技能都是「我要变成什么样」，书籍是「我读了什么」。
      ========================================== */
+
+  /* 一条目标的完整块：标题行 + 已有记录 + （进行中的才有）随手记输入框 */
+  goalItemHtml(g, withForm) {
+    const sub = [g.note || '', g.deadline ? '截止 ' + g.deadline : ''].filter(Boolean).join(' · ');
+    const fromTag = g.from ? `<span class="from-tag">${Utils.esc(g.from)} 推荐</span>` : '';
+    const logsHtml = Utils.logsHtml(g, (gid, lid) => `Extras.deleteGoalLog('${gid}','${lid}')`);
+
+    const head = withForm
+      ? `<div class="list-item">
+           <div class="habit-check" onclick="Extras.toggleGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))"></div>
+           <div class="list-item-main">
+             <div class="list-item-title">${Utils.esc(g.title)}${fromTag}</div>
+             ${sub ? `<div class="list-item-sub">${Utils.esc(sub)}</div>` : ''}
+           </div>
+           <button class="btn btn-sm btn-secondary" onclick="Extras.showEditGoal('${g.id}')">编辑</button>
+           <button class="btn btn-sm btn-danger" onclick="Extras.deleteGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))">×</button>
+         </div>`
+      : `<div class="list-item">
+           <div class="habit-check done" onclick="Extras.toggleGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))"></div>
+           <div class="list-item-main">
+             <div class="list-item-title" style="text-decoration:line-through;color:var(--text-muted)">${Utils.esc(g.title)}${fromTag}</div>
+           </div>
+           <button class="btn btn-sm btn-danger" onclick="Extras.deleteGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))">×</button>
+         </div>`;
+
+    /* 已完成的没人会去记推进，就不摆输入框了 —— 少一排噪音 */
+    const formHtml = withForm
+      ? Utils.logFormHtml(g.id, `Extras.addGoalLog('${g.id}')`, '记一笔推进…（回车提交）')
+      : '';
+
+    return `<div class="track-item" data-id="${g.id}">${head}${logsHtml}${formHtml}</div>`;
+  },
+
+  /* 只画「进行中」那一段。审核通过之后局部刷新用它，
+     免得整页重渲染把上面的审核卡闪掉。 */
+  renderGoalList() {
+    const active = this.getGoals().filter(g => !g.done);
+    if (!active.length) return '<div class="empty-state-text">暂无目标</div>';
+    return active.map(g => this.goalItemHtml(g, true)).join('');
+  },
+
   renderGoalsPage(container) {
     const goals = this.getGoals();
     const active = goals.filter(g => !g.done);
     const done = goals.filter(g => g.done);
-
-    /* 一个目标的完整块：标题行 + 已有记录 + （进行中的才有）随手记输入框 */
-    const itemHtml = (g, withForm) => {
-      const sub = [g.note || '', g.deadline ? '截止 ' + g.deadline : ''].filter(Boolean).join(' · ');
-
-      const logsHtml = Utils.logsHtml(g, (gid, lid) => `Extras.deleteGoalLog('${gid}','${lid}')`);
-
-      const head = withForm
-        ? `<div class="list-item">
-             <div class="habit-check" onclick="Extras.toggleGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))"></div>
-             <div class="list-item-main">
-               <div class="list-item-title">${Utils.esc(g.title)}</div>
-               ${sub ? `<div class="list-item-sub">${Utils.esc(sub)}</div>` : ''}
-             </div>
-             <button class="btn btn-sm btn-secondary" onclick="Extras.showEditGoal('${g.id}')">编辑</button>
-             <button class="btn btn-sm btn-danger" onclick="Extras.deleteGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))">×</button>
-           </div>`
-        : `<div class="list-item">
-             <div class="habit-check done" onclick="Extras.toggleGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))"></div>
-             <div class="list-item-main">
-               <div class="list-item-title" style="text-decoration:line-through;color:var(--text-muted)">${Utils.esc(g.title)}</div>
-             </div>
-             <button class="btn btn-sm btn-danger" onclick="Extras.deleteGoal('${g.id}');Extras.renderGoalsPage(document.getElementById('page-container'))">×</button>
-           </div>`;
-
-      /* 已完成的没人会去记推进，就不摆输入框了 —— 少一排噪音 */
-      const formHtml = withForm
-        ? Utils.logFormHtml(g.id, `Extras.addGoalLog('${g.id}')`, '记一笔推进…（回车提交）')
-        : '';
-
-      return `<div class="track-item">${head}${logsHtml}${formHtml}</div>`;
-    };
 
     container.innerHTML = `
       <div class="card page-enter mb-16">
@@ -260,14 +273,33 @@ const Extras = {
       </div>
       <div class="card mb-16">
         <div class="card-title"><span>进行中 (${active.length})</span></div>
-        ${active.length === 0 ? '<div class="empty-state-text">暂无目标</div>' : active.map(g => itemHtml(g, true)).join('')}
+        <div id="goal-active-list">${this.renderGoalList()}</div>
       </div>
       ${done.length > 0 ? `
-      <div class="card">
+      <div class="card mb-16">
         <div class="card-title"><span>已完成 (${done.length})</span></div>
-        ${done.map(g => itemHtml(g, false)).join('')}
+        ${done.map(g => this.goalItemHtml(g, false)).join('')}
       </div>` : ''}
+      <div class="card mb-16">
+        <div class="card-title">
+          <span>目标推荐</span>
+          <span class="text-sm" id="gsuggest-stat" style="margin-left:auto;margin-right:10px;"></span>
+          <button class="btn btn-sm btn-secondary" onclick="GoalSuggestions.load()">刷新</button>
+        </div>
+        <div id="gsuggest-body"><div class="empty-state-text">正在读取…</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">
+          <span>技能</span>
+          <button class="btn btn-sm btn-primary" onclick="Study.showAddSkill()">+ 添加</button>
+        </div>
+        <div id="study-skill-list">${Study.renderSkills()}</div>
+      </div>
     `;
+
+    /* 推荐列表是异步来的（要带令牌查服务端），所以卡片先渲染出来再填。
+       刷新整页时它会重新拉一次 —— 这也是「通过了但没入库」能被补收的时机。 */
+    if (typeof GoalSuggestions !== 'undefined') GoalSuggestions.load();
   },
 
   showAddGoal() {

@@ -7,7 +7,10 @@
  *   year    按年筛选，如 2026
  *   month   按月筛选，配合 year 使用，如 9
  *
- * 返回：{ entries: [...], stats: {...}, limit, offset }
+ * 返回：{ entries: [...], stats: {...}, total, limit, offset }
+ *
+ * total 是**当前筛选条件下**的条数（跟 stats.total 不同：那个永远是全部）。
+ * 公开页翻页要显示「3 / 12」，得知道分母。
  */
 
 import { toEntry, json, dbMissing } from '../_shared.js';
@@ -58,6 +61,13 @@ export async function onRequestGet({ env, request }) {
       .prepare("SELECT COUNT(*) AS total, MIN(date) AS first_date, MAX(date) AS last_date FROM diary WHERE content != ''")
       .first();
 
+    /* 筛选后的条数 —— 翻页的分母。之前只有「上一批装满一页就还有更多」的
+       判断，换成页码翻页就必须要一个确切的数。 */
+    const filtered = await env.DB
+      .prepare(`SELECT COUNT(*) AS n FROM diary WHERE ${whereSql}`)
+      .bind(...params)
+      .first();
+
     return json(
       {
         entries: (results || []).map(toEntry),
@@ -66,6 +76,7 @@ export async function onRequestGet({ env, request }) {
           firstDate: stat?.first_date || '',
           lastDate: stat?.last_date || ''
         },
+        total: (filtered && filtered.n) || 0,
         limit,
         offset
       },

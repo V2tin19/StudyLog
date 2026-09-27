@@ -1,6 +1,6 @@
 /* ============================================
-   Study - 学习打卡 / 自我提升模块
-   学习台账、书籍清单、技能清单
+   Study - 阅读 / 自我提升模块
+   学习台账、书籍清单、技能清单（技能在「目标」页展示，见 Extras）
    ============================================ */
 
 const Study = {
@@ -137,7 +137,7 @@ const Study = {
 
   deleteBook(id) {
     Store.removeItem(this.BOOKS_KEY, id);
-    this.renderStudyPage(document.getElementById('page-container'));
+    App.refresh();
   },
 
   /* ---- 技能清单 ---- */
@@ -157,12 +157,13 @@ const Study = {
 
   deleteSkill(id) {
     Store.removeItem(this.SKILLS_KEY, id);
-    this.renderStudyPage(document.getElementById('page-container'));
+    App.refresh();
   },
 
   /* ---- 书 / 技能的跟进记录 ----
      跟目标是同一套：记录挂在对象内部的 logs 上，跟着父对象一起同步，
-     所以要专门写的只有「读输入框 → 追加 → 重渲染 → 焦点放回去」这四步。 */
+     所以要专门写的只有「读输入框 → 追加 → 重渲染 → 焦点放回去」这四步。
+     书在「阅读」页、技能在「目标」页，所以重渲染用 App.refresh() 让当前页自己重画。 */
   addBookLog(id) { this._addLog(this.BOOKS_KEY, id); },
   addSkillLog(id) { this._addLog(this.SKILLS_KEY, id); },
   deleteBookLog(id, logId) { this._deleteLog(this.BOOKS_KEY, id, logId); },
@@ -178,7 +179,7 @@ const Study = {
     /* 必须传整个新数组 —— Store.updateItem 是浅合并，只传新那条会把旧记录覆盖掉 */
     Store.updateItem(key, id, { logs: Utils.appendLog(item, text) });
 
-    this.renderStudyPage(document.getElementById('page-container'));
+    App.refresh();
     Utils.focusLogInput(id);
   },
 
@@ -186,7 +187,7 @@ const Study = {
     const item = Store.getItem(key, id);
     if (!item) return;
     Store.updateItem(key, id, { logs: Utils.removeLog(item, logId) });
-    this.renderStudyPage(document.getElementById('page-container'));
+    App.refresh();
   },
 
   /* ---- 勾选完成 / 取消归档（局部刷新 + 单条目滑动动画） ---- */
@@ -195,6 +196,9 @@ const Study = {
   toggleSkillDone(id) { this._toggleDone(this.SKILLS_KEY, 'skill', id); },
 
   _toggleDone(key, kind, id) {
+    /* ⚠️ 技能卡现在渲染在「目标」页（Extras.renderGoalsPage），但 id 还叫
+       study-skill-list —— 数据本身仍在 Study 名下（store key `study_skills`），
+       名字跟着数据走，只有展示位置搬了家。改这个 id 要同时改 extras.js。 */
     const el = document.getElementById(kind === 'book' ? 'study-book-list' : 'study-skill-list');
     if (!el) return;
 
@@ -255,21 +259,12 @@ const Study = {
         </div>
         <div id="suggest-body"><div class="empty-state-text">正在读取…</div></div>
       </div>
-      <div class="card-grid card-grid-2 study-cols">
-        <div class="card">
-          <div class="card-title">
-            <span>书籍</span>
-            <button class="btn btn-sm btn-primary" onclick="Study.showAddBook()">+ 添加</button>
-          </div>
-          <div id="study-book-list">${this.renderBooks()}</div>
+      <div class="card">
+        <div class="card-title">
+          <span>书籍</span>
+          <button class="btn btn-sm btn-primary" onclick="Study.showAddBook()">+ 添加</button>
         </div>
-        <div class="card">
-          <div class="card-title">
-            <span>技能</span>
-            <button class="btn btn-sm btn-primary" onclick="Study.showAddSkill()">+ 添加</button>
-          </div>
-          <div id="study-skill-list">${this.renderSkills()}</div>
-        </div>
+        <div id="study-book-list">${this.renderBooks()}</div>
       </div>
     `;
 
@@ -364,7 +359,7 @@ const Study = {
           <div class="list-item${done ? ' archived' : ''}">
             <div class="habit-check${done ? ' done' : ''}" onclick="Study.${toggle}('${x.id}')"></div>
             <div class="list-item-main">
-              <div class="list-item-title">${Utils.esc(title)}${x.from ? `<span class="from-tag">${Utils.esc(x.from)}推荐</span>` : ''}</div>
+              <div class="list-item-title">${Utils.esc(title)}${x.from ? `<span class="from-tag">${Utils.esc(x.from)} 推荐</span>` : ''}</div>
               ${x.notes ? `<div class="list-item-sub">${Utils.esc(x.notes)}</div>` : ''}
             </div>
             ${editBtn}
