@@ -298,6 +298,42 @@
       border-radius: var(--radius-md);
     }
 
+    /* 书目荐读：提交表单 + 已采纳的荐读墙 */
+    .pub-suggest-desc { font-size: 0.78rem; color: var(--text-muted); margin: -4px 0 12px; line-height: 1.7; }
+    .pub-sform {
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 18px;
+    }
+    .pub-sform-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .pub-sform-row:last-of-type { margin-bottom: 0; }
+    .pub-sform .input { padding: 7px 12px; font-size: 0.84rem; }
+    .pub-sform .pub-suggest-title { flex: 1 1 55%; min-width: 0; }
+    .pub-sform .pub-suggest-author { flex: 1 1 45%; min-width: 0; }
+    .pub-sform .textarea { min-height: 58px; padding: 8px 12px; font-size: 0.84rem; margin-bottom: 8px; }
+    .pub-sform .pub-input-name { flex: 1; min-width: 0; }
+    .pub-sform .btn:disabled { opacity: 0.55; cursor: default; }
+    .pub-sform-msg { font-size: 0.78rem; margin-top: 7px; line-height: 1.6; }
+    .pub-sform-msg.err { color: var(--accent-red); }
+    .pub-sform-msg.ok { color: var(--accent-green); }
+    .pub-suggest-list { display: flex; flex-direction: column; gap: 10px; }
+    .pub-suggest-item {
+      display: flex; gap: 11px; padding: 12px 15px;
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+    }
+    .pub-suggest-main { flex: 1; min-width: 0; }
+    .pub-suggest-book { font-size: 0.9rem; font-weight: 500; line-height: 1.5; }
+    .pub-suggest-author { font-size: 0.76rem; font-weight: 400; color: var(--text-muted); margin-left: 7px; }
+    .pub-suggest-note { font-size: 0.84rem; color: var(--text-secondary); line-height: 1.7; margin-top: 3px; word-break: break-word; }
+
+    /* 「谁推荐」小标签：书单的行和荐读墙共用。
+       用粉色系跟蓝(进行中)/绿(已完成)区分开 —— 它是来源信息，不是状态。 */
+    .from-tag {
+      display: inline-block; margin-left: 7px; padding: 1px 8px; border-radius: 999px;
+      font-size: 0.68rem; font-weight: 400; vertical-align: 1px;
+      color: var(--accent-pink); background: rgba(201, 154, 166, 0.16);
+    }
+
     .pub-state { text-align: center; padding: 48px 16px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.9; }
     .pub-state strong { display: block; color: var(--text-secondary); font-size: 1rem; font-weight: 500; margin-bottom: 6px; }
 
@@ -322,6 +358,10 @@
       .pub-card { padding: 15px 16px; }
       .pub-cform .pub-input-name { flex: 0 0 70px; }   /* 窄屏给内容框让位 */
       .pub-board-top { padding: 14px 15px; }
+      .pub-sform { padding: 12px 13px; }
+      .pub-sform-row { gap: 6px; }
+      .pub-sform .pub-input-name { flex: 0 0 76px; }
+      .pub-suggest-item { padding: 11px 13px; }
       .pub-row-head { padding: 11px 13px; }
       .pub-row .pub-logs { margin: 0 13px 10px; }
       .pub-day { padding: 12px 14px 6px; }

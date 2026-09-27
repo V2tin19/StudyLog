@@ -378,6 +378,69 @@ img { max-width: 100%; height: auto; display: block; }
   overflow-x: auto; white-space: pre; user-select: text;
 }
 
+/* ---- 书目荐读（写作台的学习页内嵌卡片） ---- */
+/* 「谁推荐」小标签：书单的行和公开页共用。粉色系跟蓝(进行中)/绿(已完成)区分开 —— 
+   它是来源信息，不是状态。 */
+.from-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  font-size: 0.66rem; font-weight: 400; vertical-align: 1px;
+  color: var(--accent-pink); background: rgba(201, 154, 166, 0.16);
+}
+
+/* 兜底提示条：审核通过了但还没搬进书单 */
+.suggest-alert {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 12px;
+  background: rgba(212, 167, 106, 0.12); border: 1px solid rgba(212, 167, 106, 0.35);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem; color: var(--text-secondary);
+}
+.suggest-alert .btn { margin-left: auto; }
+
+.suggest-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 13px 0; border-bottom: 1px solid var(--border-light);
+}
+.suggest-row:last-child { border-bottom: none; }
+.suggest-row.is-rejected { opacity: 0.6; }
+.suggest-main { flex: 1; min-width: 0; }
+.suggest-book { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+.suggest-title { font-size: 0.9rem; font-weight: 500; }
+.suggest-author { font-size: 0.76rem; color: var(--text-muted); }
+.suggest-flag {
+  font-size: 0.66rem; border-radius: 999px; padding: 1px 7px;
+  border: 1px solid currentColor;
+}
+.suggest-flag.is-ok { color: var(--accent-green); }
+.suggest-flag.is-warn { color: var(--accent-orange); }
+.suggest-note {
+  font-size: 0.82rem; color: var(--text-secondary); line-height: 1.7;
+  margin-top: 4px; word-break: break-word;
+}
+.suggest-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 0.72rem; color: var(--text-muted); margin-top: 5px;
+}
+.suggest-who { color: var(--text-primary); font-weight: 500; }
+.suggest-actions { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; justify-content: flex-end; }
+
+/* 已通过 / 已拒绝两个折叠区 */
+.suggest-fold {
+  margin-top: 12px; border-top: 1px solid var(--border-light); padding-top: 10px;
+}
+.suggest-fold > summary {
+  cursor: pointer; font-size: 0.8rem; color: var(--text-secondary);
+  padding: 4px 0; list-style: none;
+}
+.suggest-fold > summary::-webkit-details-marker { display: none; }
+.suggest-fold > summary::before { content: '› '; color: var(--text-muted); }
+.suggest-fold[open] > summary::before { content: '⌄ '; }
+.suggest-fold > summary:hover { color: var(--accent-blue); }
+.suggest-fold-body { padding-top: 4px; }
+
+.suggest-foot { font-size: 0.72rem; color: var(--text-muted); margin-top: 12px; line-height: 1.7; }
+.suggest-setup { padding-top: 4px; }
+
 /* ---- 心情选择器 ---- */
 .mood-selector {
   display: flex; gap: 8px; flex-wrap: wrap;
@@ -592,6 +655,9 @@ tr:hover td { background: var(--bg-hover); }
   .card-grid { grid-template-columns: 1fr !important; }
   /* 书 / 技能底下现在都挂着记录和输入框，窄屏再并两列就没法用了 */
   .study-cols { grid-template-columns: 1fr !important; }
+  /* 荐读一行：窄屏让按钮换到下面一行，别把书名挤成一列字 */
+  .suggest-row { flex-direction: column; }
+  .suggest-actions { justify-content: flex-start; }
   .card-row { flex-direction: column; }
   .stat-card { padding: 12px; }
   .stat-value { font-size: 1.3rem; }

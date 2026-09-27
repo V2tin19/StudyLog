@@ -247,6 +247,14 @@ const Study = {
           ${this.renderSessionList()}
         </div>
       </div>
+      <div class="card mb-16">
+        <div class="card-title">
+          <span>书目荐读</span>
+          <span class="text-sm" id="suggest-stat" style="margin-left:auto;margin-right:10px;"></span>
+          <button class="btn btn-sm btn-secondary" onclick="Suggestions.load()">刷新</button>
+        </div>
+        <div id="suggest-body"><div class="empty-state-text">正在读取…</div></div>
+      </div>
       <div class="card-grid card-grid-2 study-cols">
         <div class="card">
           <div class="card-title">
@@ -264,6 +272,10 @@ const Study = {
         </div>
       </div>
     `;
+
+    /* 荐读列表是异步来的（要带令牌查服务端），所以卡片先渲染出来再填。
+       刷新整页时它会重新拉一次 —— 这也是「通过了但没入库」能被补收的时机。 */
+    if (typeof Suggestions !== 'undefined') Suggestions.load();
   },
 
   renderSessionList() {
@@ -352,7 +364,7 @@ const Study = {
           <div class="list-item${done ? ' archived' : ''}">
             <div class="habit-check${done ? ' done' : ''}" onclick="Study.${toggle}('${x.id}')"></div>
             <div class="list-item-main">
-              <div class="list-item-title">${Utils.esc(title)}</div>
+              <div class="list-item-title">${Utils.esc(title)}${x.from ? `<span class="from-tag">${Utils.esc(x.from)}推荐</span>` : ''}</div>
               ${x.notes ? `<div class="list-item-sub">${Utils.esc(x.notes)}</div>` : ''}
             </div>
             ${editBtn}

@@ -14,17 +14,13 @@
  * 「删除」是真删，给那种必须清掉的场景。
  */
 
-import { json, dbMissing, requireAdmin } from '../_shared.js';
+import { json, dbMissing, requireAdmin, isMissingTable, blockIp, unblockIp, BLOCKLIST_TABLE } from '../_shared.js';
 
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
 const NO_STORE = { 'cache-control': 'no-store' };
 
 const NEED_TABLE = '留言表还没建。请在 D1 控制台执行 schema.sql 里 comments / comment_blocklist 那两段。';
-
-function isMissingTable(err) {
-  return /no such table/i.test(String((err && err.message) || ''));
-}
 
 function toAdminComment(row) {
   return {
@@ -82,7 +78,7 @@ export async function onRequestGet({ env, request }) {
     let blocked = [];
     try {
       const b = await env.DB
-        .prepare('SELECT ip_hash, created_at FROM comment_blocklist ORDER BY created_at DESC')
+        .prepare(`SELECT ip_hash, created_at FROM ${BLOCKLIST_TABLE} ORDER BY created_at DESC`)
         .all();
       blocked = (b.results || []).map(r => ({ ipHash: r.ip_hash, createdAt: r.created_at }));
     } catch { /* 黑名单表还没建，当作空 */ }
@@ -135,7 +131,9 @@ export async function onRequestPatch({ env, request }) {
   }
 }
 
-/* ---------------- POST：拉黑 ---------------- */
+/* ---------------- POST：拉黑 ----------------
+   注意：「拉黑」不只挡留言，也挡书目荐读 —— 两边共用同一张黑名单表。
+   对一个被拉黑的人来说，他看到的应该是「这个地址发不出任何东西」。 */
 export async function onRequestPost({ env, request }) {
   if (!env.DB) return dbMissing();
   const rejected = requireAdmin(request, env);
@@ -154,10 +152,7 @@ export async function onRequestPost({ env, request }) {
   }
 
   try {
-    await env.DB
-      .prepare('INSERT OR IGNORE INTO comment_blocklist (ip_hash, created_at) VALUES (?, ?)')
-      .bind(ipHash, new Date().toISOString())
-      .run();
+    await blockIp(env, ipHash);
     return json({ ok: true, ipHash }, 200, NO_STORE);
   } catch (err) {
     if (isMissingTable(err)) return json({ error: NEED_TABLE }, 500, NO_STORE);
@@ -184,7 +179,7 @@ export async function onRequestDelete({ env, request }) {
     }
 
     if (ipHash) {
-      await env.DB.prepare('DELETE FROM comment_blocklist WHERE ip_hash = ?').bind(ipHash).run();
+      await unblockIp(env, ipHash);
       return json({ ok: true, unblocked: ipHash }, 200, NO_STORE);
     }
 

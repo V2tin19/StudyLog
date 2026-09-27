@@ -19,7 +19,10 @@
  * 盐走环境变量 COMMENT_SALT，没设也能跑（有兜底），但设了才真正防「枚举 IPv4 反查」。
  */
 
-import { json, dbMissing, isValidDate } from './_shared.js';
+import {
+  json, dbMissing, isValidDate,
+  isMissingTable, hashIp, clientIp, honeyPotHit, hasLink, isBlocked, isRateLimited
+} from './_shared.js';
 
 const MAX_NAME = 24;
 const MAX_CONTENT = 500;
@@ -34,23 +37,6 @@ const NO_STORE = { 'cache-control': 'no-store' };
 /* 表还没建的时候 D1 报 "no such table: comments"。
    这种情况要给一句人能照着做的提示，别把 SQL 原话甩给访客看。 */
 const NEED_TABLE = '留言表还没建。可以在写作台的「留言」页上直接复制建表 SQL，去 D1 控制台跑一次。';
-
-function isMissingTable(err) {
-  return /no such table/i.test(String((err && err.message) || ''));
-}
-
-async function hashIp(ip, salt) {
-  const bytes = new TextEncoder().encode(String(salt || 'studylog') + '|' + String(ip || ''));
-  const buf = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function clientIp(request) {
-  const direct = request.headers.get('CF-Connecting-IP');
-  if (direct) return direct.trim();
-  const fwd = request.headers.get('x-forwarded-for') || '';
-  return fwd.split(',')[0].trim();
-}
 
 /** 数据库行 → 前端认识的留言对象（绝不带 ip_hash 出去） */
 function toComment(row) {
@@ -143,7 +129,7 @@ export async function onRequestPost({ env, request }) {
   /* ---- 1. 蜜罐 ----
      正常访客看不见这个输入框，只有傻瓜机器人才会老实填。
      故意返回「成功」而不是报错：让机器人以为发进去了，别给它反馈去调参。 */
-  if (String((body && body.hp) || '').trim()) {
+  if (honeyPotHit(body)) {
     return json({ ok: true, comment: null }, 200, NO_STORE);
   }
 
@@ -163,7 +149,7 @@ export async function onRequestPost({ env, request }) {
   }
   /* 垃圾留言几乎 100% 带链接。这条会误伤「想分享个链接」的正常人，
      但公开站宁可让人多一句话说明，也别开个口子等着被灌。 */
-  if (/https?:\/\/|www\./i.test(content)) {
+  if (hasLink(content)) {
     return json({ error: '留言里不能带链接' }, 400, NO_STORE);
   }
 
@@ -171,21 +157,12 @@ export async function onRequestPost({ env, request }) {
 
   try {
     /* ---- 3. 拉黑名单 ---- */
-    const blocked = await env.DB
-      .prepare('SELECT ip_hash FROM comment_blocklist WHERE ip_hash = ?')
-      .bind(ipHash)
-      .first();
-    if (blocked) {
+    if (await isBlocked(env, ipHash)) {
       return json({ error: '这个网络地址已被站主拉黑' }, 403, NO_STORE);
     }
 
     /* ---- 4. 限流 ---- */
-    const since = new Date(Date.now() - RATE_WINDOW_MS).toISOString();
-    const recent = await env.DB
-      .prepare('SELECT COUNT(*) AS n FROM comments WHERE ip_hash = ? AND created_at > ?')
-      .bind(ipHash, since)
-      .first();
-    if ((recent && recent.n ? recent.n : 0) >= RATE_MAX) {
+    if (await isRateLimited(env, 'comments', ipHash, RATE_MAX, RATE_WINDOW_MS)) {
       return json({ error: `发得太快了，一分钟最多 ${RATE_MAX} 条，歇一下再来` }, 429, NO_STORE);
     }
 

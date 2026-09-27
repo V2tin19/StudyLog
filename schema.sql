@@ -32,10 +32,41 @@ CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(scope, target, hidden
 -- 限流查询：同 IP 最近一分钟
 CREATE INDEX IF NOT EXISTS idx_comments_ip ON comments(ip_hash, created_at);
 
--- 拉黑名单。站主在写作台点「拉黑」就往这里写一条，之后同一个 IP 发不出留言。
+-- 拉黑名单。站主在写作台点「拉黑」就往这里写一条。
+-- 注意：留言和书目荐读**共用**这张表 —— 被拉黑的人两个口子都发不出东西。
+-- 名字里带 comment 是历史原因（最初只有留言在用），现在没改名，
+-- 因为改名要让已经建好表的环境重跑 SQL，收益只是名字好看。
 CREATE TABLE IF NOT EXISTS comment_blocklist (
   ip_hash    TEXT PRIMARY KEY,
   created_at TEXT NOT NULL
 );
+
+-- ============================================================
+-- 书目荐读（第二个访客能写的功能）
+--
+-- 访客推荐一本书 → 进待审队列 → 站主在写作台通过 → 自动进站主的书单。
+-- status：pending 待审 / approved 已通过 / rejected 不要
+-- imported_at：这本书「已经搬进书单」的时间。
+--   为什么要单独一个字段，而不是靠「书名是否已在书单里」判断：
+--   书名会重名、会被改名，靠字符串比对迟早误判。写死一个时间戳最可靠，
+--   而且这样才有兜底 —— 通过之后写作台要是没开着，下次打开能补收，不会漏。
+-- ip_hash 同样是加盐 SHA-256，跟留言共用一张黑名单。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS book_suggestions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  title       TEXT    NOT NULL,
+  author      TEXT    NOT NULL DEFAULT '',
+  note        TEXT    NOT NULL DEFAULT '',
+  name        TEXT    NOT NULL DEFAULT '',
+  status      TEXT    NOT NULL DEFAULT 'pending',
+  created_at  TEXT    NOT NULL,
+  decided_at  TEXT    NOT NULL DEFAULT '',
+  imported_at TEXT    NOT NULL DEFAULT '',
+  ip_hash     TEXT    NOT NULL DEFAULT ''
+);
+-- 公开页只读 approved（按 id 倒序翻页）
+CREATE INDEX IF NOT EXISTS idx_suggest_status ON book_suggestions(status, id);
+-- 限流：同 IP 最近一分钟
+CREATE INDEX IF NOT EXISTS idx_suggest_ip ON book_suggestions(ip_hash, created_at);
 
 SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;

@@ -112,8 +112,9 @@
   }
 
   /* 名单型的一行（在读的书、在学的技能、最近的学习记录）。
-     opts: { title, sub, value, badge, dot, logs }
+     opts: { title, sub, value, badge, dot, logs, tag }
      badge 传了就显示一个胶囊标签（已读 / 已掌握），圆点同时变绿 —— 扫一眼就分得出完成与否；
+     tag 是「谁推荐的」小标签，只有书目荐读进来的书才有；
      logs 非空则整行可展开，点标题行看跟进记录（跟目标卡同一套交互）。 */
   function plainRow(opts) {
     var o = opts || {};
@@ -128,7 +129,9 @@
       '<div class="pub-row-head"' +
         (hasLogs ? ' role="button" tabindex="0" aria-expanded="false"' : '') + '>' +
         '<div class="pub-row-main">' +
-          '<div class="pub-row-title">' + esc(o.title || '未命名') + '</div>' +
+          '<div class="pub-row-title">' + esc(o.title || '未命名') +
+            (o.tag ? '<span class="from-tag">' + esc(o.tag) + '</span>' : '') +
+          '</div>' +
           (o.sub ? '<div class="pub-row-sub">' + esc(o.sub) + '</div>' : '') +
         '</div>' +
         (o.value ? '<div class="pub-row-value">' + esc(o.value) + '</div>' : '') +
@@ -385,7 +388,9 @@
           sub: x.notes,
           badge: x.status === 'done' ? doneBadge : '',
           dot: true,
-          logs: x.logs
+          logs: x.logs,
+          /* from 是书目荐读留下的印记：这本书是谁推荐的 */
+          tag: x.from ? x.from + ' 推荐' : ''
         });
       }).join('') + '</div></div>';
   }
@@ -399,41 +404,199 @@
     var books = Array.isArray(d.books) ? d.books : [];
     var skills = Array.isArray(d.skills) ? d.skills : [];
 
-    if (!sessions.length && !books.length && !skills.length) {
-      body.innerHTML = stateHtml('还没有学习记录');
-      return;
-    }
-
     var html = '';
 
-    /* 最近记录压在两列上面，横跨整宽 */
-    var recent = sessions.slice()
-      .sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); })
-      .slice(0, 8);
+    if (!sessions.length && !books.length && !skills.length) {
+      /* ⚠️ 这里以前是直接 return 的。改成往下走，因为荐读区得照常出现 ——
+         站主自己没记学习数据，不代表访客就不能荐书。 */
+      html += stateHtml('还没有学习记录');
+    } else {
+      /* 最近记录压在两列上面，横跨整宽 */
+      var recent = sessions.slice()
+        .sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); })
+        .slice(0, 8);
 
-    if (recent.length) {
-      html += '<div class="pub-section"><div class="pub-section-title">最近记录</div><div class="pub-list">';
-      recent.forEach(function (s) {
-        html += plainRow({
-          title: s.subject || '未分类',
-          sub: shortDate(s.date) + (s.content ? ' · ' + s.content : ''),
-          value: fmtDuration(s.duration)
+      if (recent.length) {
+        html += '<div class="pub-section"><div class="pub-section-title">最近记录</div><div class="pub-list">';
+        recent.forEach(function (s) {
+          html += plainRow({
+            title: s.subject || '未分类',
+            sub: shortDate(s.date) + (s.content ? ' · ' + s.content : ''),
+            value: fmtDuration(s.duration)
+          });
         });
-      });
-      html += '</div></div>';
+        html += '</div></div>';
+      }
+
+      /* 书籍 / 技能并排两列。哪一列空着也不塌 —— 留一句话占位，左右保持对称。
+         进度条整体去掉：书籍和技能的数据里根本没有 progress 字段，
+         之前那根永远是 0% 的空条，纯属噪音。 */
+      if (books.length || skills.length) {
+        html += '<div class="pub-section"><div class="pub-cols">' +
+          studyCol('书籍', books, '已读', function (b) { return b.title; }) +
+          studyCol('技能', skills, '已掌握', function (s) { return s.name; }) +
+        '</div></div>';
+      }
     }
 
-    /* 书籍 / 技能并排两列。哪一列空着也不塌 —— 留一句话占位，左右保持对称。
-       进度条整体去掉：书籍和技能的数据里根本没有 progress 字段，
-       之前那根永远是 0% 的空条，纯属噪音。 */
-    if (books.length || skills.length) {
-      html += '<div class="pub-section"><div class="pub-cols">' +
-        studyCol('书籍', books, '已读', function (b) { return b.title; }) +
-        studyCol('技能', skills, '已掌握', function (s) { return s.name; }) +
-      '</div></div>';
-    }
+    /* 荐读区放在最后 —— 它是「访客参与」的部分，不属于站主自己的台账。
+       内容由 renderSuggest 单独填（要走 /api/suggestions，跟 doc 不是一路）。 */
+    html += '<div id="pub-suggest"></div>';
 
     body.innerHTML = html;
+    renderSuggest();
+    loadSuggest();
+  }
+
+  /* =========================================================
+     书目荐读
+     访客推荐 → 站主在写作台审 → 通过后进站主书单。
+     这里只管「提交」和「看已采纳的」两件事。
+     ========================================================= */
+
+  var SUGGEST_API = '/api/suggestions';
+  var suggestItems = null;      /* null = 还没拉到 */
+  var suggestBlocked = false;   /* 表还没建：整块不出现 */
+  var suggestInited = false;
+  var suggestLoading = false;
+
+  function suggestFormHtml() {
+    return '<form class="pub-sform">' +
+      '<div class="pub-sform-row">' +
+        '<input class="input pub-suggest-title" name="title" maxlength="60" autocomplete="off" placeholder="书名">' +
+        '<input class="input pub-suggest-author" name="author" maxlength="40" autocomplete="off" placeholder="作者（可不填）">' +
+      '</div>' +
+      '<textarea class="textarea pub-suggest-note" name="note" maxlength="200" placeholder="为什么推荐它？（可不填，一句话就够）"></textarea>' +
+      '<div class="pub-sform-row pub-sform-send">' +
+        '<input class="input pub-input-name" name="name" maxlength="24" autocomplete="off" ' +
+          'placeholder="昵称" value="' + esc(savedName()) + '">' +
+        '<button class="btn btn-sm btn-primary" type="submit">推荐</button>' +
+      '</div>' +
+      /* 蜜罐：跟留言同一个手法。正常访客看不见，只有机器人会填。 */
+      '<input class="hp-field" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+      '<div class="pub-sform-msg"></div>' +
+      '<div class="pub-cform-note">站主看到之后挑着加进书单，通过了你就能在上面看到 · 一分钟最多 3 本 · 不能带链接</div>' +
+    '</form>';
+  }
+
+  function suggestRowHtml(it) {
+    return '<div class="pub-suggest-item">' +
+      '<div class="pub-comment-av">' + esc(nameInitial(it.name)) + '</div>' +
+      '<div class="pub-suggest-main">' +
+        '<div class="pub-suggest-book">《' + esc(it.title) + '》' +
+          (it.author ? '<span class="pub-suggest-author">' + esc(it.author) + '</span>' : '') +
+        '</div>' +
+        (it.note ? '<div class="pub-suggest-note">' + esc(it.note) + '</div>' : '') +
+        '<div class="pub-comment-head"><span class="pub-comment-name">' +
+          esc(it.name || '访客') + '</span> · ' + esc(shortTime(it.createdAt)) + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* 把 #pub-suggest 整块画出来。切 tab 回来时是拿缓存重画的，不会再请求一次。 */
+  function renderSuggest() {
+    var box = document.getElementById('pub-suggest');
+    if (!box) return;
+
+    if (suggestBlocked) { box.innerHTML = ''; return; }
+
+    var wall;
+    if (suggestItems === null) {
+      wall = '<div class="pub-state">正在读取…</div>';
+    } else if (!suggestItems.length) {
+      wall = '<div class="pub-col-empty">还没有人推荐过书，来当第一个</div>';
+    } else {
+      wall = '<div class="pub-suggest-list">' + suggestItems.map(suggestRowHtml).join('') + '</div>';
+    }
+
+    box.innerHTML =
+      '<div class="pub-section">' +
+        '<div class="pub-section-title">书目荐读</div>' +
+        '<div class="pub-suggest-desc">读过觉得值得一读的书，写在这里。站主会挑着加进书单。</div>' +
+        suggestFormHtml() +
+        wall +
+      '</div>';
+  }
+
+  function loadSuggest() {
+    if (suggestInited || suggestLoading || suggestBlocked) return;
+    suggestLoading = true;
+
+    fetch(SUGGEST_API + '?limit=100', { headers: { accept: 'application/json' } })
+      .then(function (res) { return res.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        /* 表没建时接口返回 200 + needTable，不报错 —— 学习页本身是好的，
+           只是不该给访客看一块空壳子，所以整块撤掉。 */
+        if (data && data.needTable) suggestBlocked = true;
+        else suggestItems = (data && data.items) || [];
+        suggestInited = true;
+      })
+      .catch(function () {
+        /* 拉不到不影响看学习页：把墙画成空的，表单还能用 */
+        suggestItems = [];
+        suggestInited = true;
+      })
+      .finally(function () {
+        suggestLoading = false;
+        renderSuggest();
+      });
+  }
+
+  function setSFormMsg(form, text, type) {
+    var el = form.querySelector('.pub-sform-msg');
+    if (!el) return;
+    el.className = 'pub-sform-msg' + (type ? ' ' + type : '');
+    el.textContent = text;
+  }
+
+  function sendSuggestion(form) {
+    var titleEl = form.querySelector('.pub-suggest-title');
+    var authorEl = form.querySelector('.pub-suggest-author');
+    var noteEl = form.querySelector('.pub-suggest-note');
+    var nameEl = form.querySelector('.pub-input-name');
+    var hpEl = form.querySelector('.hp-field');
+    var btn = form.querySelector('button[type="submit"]');
+
+    var title = (titleEl.value || '').trim();
+    if (!title) { setSFormMsg(form, '还没写书名', 'err'); titleEl.focus(); return; }
+
+    var name = (nameEl.value || '').trim();
+    if (name) rememberName(name);
+
+    btn.disabled = true;
+    btn.textContent = '提交中…';
+    setSFormMsg(form, '', '');
+
+    fetch(SUGGEST_API, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: title,
+        author: (authorEl.value || '').trim(),
+        note: (noteEl.value || '').trim(),
+        name: name,
+        hp: hpEl ? hpEl.value : ''
+      })
+    })
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
+          return data;
+        });
+      })
+      .then(function (data) {
+        titleEl.value = '';
+        authorEl.value = '';
+        noteEl.value = '';
+        /* 蜜罐命中时服务端不返回内容，静静收场，别给机器人反馈 */
+        setSFormMsg(form, '已提交，等站主看一看', 'ok');
+        if (!data.item) return;
+      })
+      .catch(function (err) { setSFormMsg(form, err.message || String(err), 'err'); })
+      .finally(function () {
+        btn.disabled = false;
+        btn.textContent = '推荐';
+      });
   }
 
   /* =========================================================
@@ -1084,6 +1247,18 @@
 
     /* 留言数单独拉：条数是后到的，先渲染日记再补数字，别为了一行数字让整页等着 */
     loadCommentCounts();
+
+    /* 荐读表单同理：挂在 #study-body 上（它本身不会被替换，
+       renderStudy 只换它的 innerHTML）。 */
+    var studyBox = document.getElementById('study-body');
+    if (studyBox) {
+      studyBox.addEventListener('submit', function (e) {
+        var f = e.target;
+        if (!f || !f.classList || !f.classList.contains('pub-sform')) return;
+        e.preventDefault();
+        sendSuggestion(f);
+      });
+    }
 
     loadDiary();
   });
