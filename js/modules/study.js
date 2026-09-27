@@ -132,15 +132,41 @@ const Study = {
     });
   },
 
-  /* 勾选完成 / 取消归档（局部刷新，不整页重载） */
+  /* 勾选完成 / 取消归档（局部刷新 + 单条目滑动动画） */
   toggleBookDone(id) {
+    const el = document.getElementById('study-book-list');
+    if (!el) return;
+    /* First：记录各条目当前位置 */
+    const firstPos = {};
+    [...el.querySelectorAll('.list-item')].forEach(item => {
+      firstPos[item.dataset.id] = item.getBoundingClientRect().top;
+    });
     const book = Store.getItem(this.BOOKS_KEY, id);
     if (book) {
       book.status = book.status === 'done' ? 'reading' : 'done';
       Store.updateItem(this.BOOKS_KEY, id, book);
-      const el = document.getElementById('study-book-list');
-      if (el) el.innerHTML = this.renderBooks();
+      el.innerHTML = this.renderBooks();
+      this._animateReorder(el, firstPos);
     }
+  },
+
+  /* FLIP 动画：条目从原位平滑滑到重排后的新位置 */
+  _animateReorder(listEl, firstPos) {
+    [...listEl.querySelectorAll('.list-item')].forEach(el => {
+      const oldTop = firstPos[el.dataset.id];
+      const newTop = el.getBoundingClientRect().top;
+      if (oldTop !== undefined && oldTop !== newTop) {
+        const delta = oldTop - newTop;
+        el.style.transition = 'none';
+        el.style.transform = `translateY(${delta}px)`;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.style.transition = 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)';
+            el.style.transform = 'translateY(0)';
+          });
+        });
+      }
+    });
   },
 
   /* ---- 技能清单 ---- */
@@ -157,14 +183,20 @@ const Study = {
     return Store.updateItem(this.SKILLS_KEY, id, data);
   },
 
-  /* 勾选完成 / 取消归档（局部刷新，不整页重载） */
+  /* 勾选完成 / 取消归档（局部刷新 + 单条目滑动动画） */
   toggleSkillDone(id) {
+    const el = document.getElementById('study-skill-list');
+    if (!el) return;
+    const firstPos = {};
+    [...el.querySelectorAll('.list-item')].forEach(item => {
+      firstPos[item.dataset.id] = item.getBoundingClientRect().top;
+    });
     const skill = Store.getItem(this.SKILLS_KEY, id);
     if (skill) {
       skill.status = skill.status === 'done' ? 'active' : 'done';
       Store.updateItem(this.SKILLS_KEY, id, skill);
-      const el = document.getElementById('study-skill-list');
-      if (el) el.innerHTML = this.renderSkills();
+      el.innerHTML = this.renderSkills();
+      this._animateReorder(el, firstPos);
     }
   },
 
@@ -259,7 +291,7 @@ const Study = {
     const sorted = [...reading, ...done];
     if (sorted.length === 0) return '<div class="empty-state-text">暂无书籍，点击上方添加</div>';
     return sorted.map(b => `
-      <div class="list-item${b.status === 'done' ? ' archived' : ''}">
+      <div class="list-item${b.status === 'done' ? ' archived' : ''}" data-id="${b.id}">
         <div class="habit-check${b.status === 'done' ? ' done' : ''}" onclick="Study.toggleBookDone('${b.id}')"></div>
         <div class="list-item-main">
           <div class="list-item-title">${b.title || '未命名'}</div>
@@ -297,7 +329,7 @@ const Study = {
     const sorted = [...active, ...done];
     if (sorted.length === 0) return '<div class="empty-state-text">暂无技能，点击上方添加</div>';
     return sorted.map(s => `
-      <div class="list-item${s.status === 'done' ? ' archived' : ''}">
+      <div class="list-item${s.status === 'done' ? ' archived' : ''}" data-id="${s.id}">
         <div class="habit-check${s.status === 'done' ? ' done' : ''}" onclick="Study.toggleSkillDone('${s.id}')"></div>
         <div class="list-item-main">
           <div class="list-item-title">${s.name || '未命名'}</div>

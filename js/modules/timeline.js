@@ -2,7 +2,7 @@
    Timeline - 时间线模块
    左侧时间线展示日记，顶部最新、底部最旧
    支持全部 / 周 / 月份筛选，每页 15 条分页
-   数据实时读取日记存储，写入/修改后自动同步
+   筛选切换仅局部更新，避免整页刷新动画
    ============================================ */
 
 const Timeline = {
@@ -20,12 +20,6 @@ const Timeline = {
     if (this._filterMonth === null) this._filterMonth = now.getMonth() + 1;
 
     const today = Utils.today();
-    const allDates = this.getFilteredDates();
-    const total = allDates.length;
-    const totalPages = Math.max(1, Math.ceil(total / this.PER_PAGE));
-    if (this._page > totalPages) this._page = totalPages;
-    const pageDates = allDates.slice((this._page - 1) * this.PER_PAGE, this._page * this.PER_PAGE);
-
     container.innerHTML = `
       <div class="card mb-16">
         <div class="card-title">
@@ -33,30 +27,53 @@ const Timeline = {
           <button class="btn btn-sm btn-primary" onclick="Diary.showEditor('${today}')">写今日日记</button>
         </div>
         <div class="timeline-filter">
-          <button class="filter-pill${this._filter === 'all' ? ' active' : ''}" onclick="Timeline.setFilter('all')">全部</button>
-          <button class="filter-pill${this._filter === 'week' ? ' active' : ''}" onclick="Timeline.setFilter('week')">周</button>
-          <button class="filter-pill${this._filter === 'month' ? ' active' : ''}" onclick="Timeline.setFilter('month')">月份</button>
+          <button class="filter-pill" data-filter="all" onclick="Timeline.setFilter('all')">全部</button>
+          <button class="filter-pill" data-filter="week" onclick="Timeline.setFilter('week')">周</button>
+          <button class="filter-pill" data-filter="month" onclick="Timeline.setFilter('month')">月份</button>
         </div>
-        ${this._filter === 'month' ? this.renderMonthPanel() : ''}
-        ${this._filter === 'week' ? this.renderWeekPanel() : ''}
-        <div class="text-sm text-muted mt-8">${this.filterLabel()} · 共 ${total} 篇</div>
+        <div id="timeline-panel"></div>
+        <div class="text-sm text-muted mt-8" id="timeline-count"></div>
       </div>
       <div class="timeline" id="timeline-wrap"></div>
-      ${totalPages > 1 ? `
+      <div id="timeline-pagination"></div>
+    `;
+
+    this.updateView();
+  },
+
+  /* 仅更新可变区域（胶囊高亮/面板/计数/列表/分页），外层卡片不动 */
+  updateView() {
+    document.querySelectorAll('.filter-pill').forEach(el => {
+      el.classList.toggle('active', el.dataset.filter === this._filter);
+    });
+
+    const panel = document.getElementById('timeline-panel');
+    if (panel) {
+      panel.innerHTML = this._filter === 'month' ? this.renderMonthPanel()
+        : this._filter === 'week' ? this.renderWeekPanel() : '';
+    }
+
+    const allDates = this.getFilteredDates();
+    const total = allDates.length;
+    const totalPages = Math.max(1, Math.ceil(total / this.PER_PAGE));
+    if (this._page > totalPages) this._page = totalPages;
+    const pageDates = allDates.slice((this._page - 1) * this.PER_PAGE, this._page * this.PER_PAGE);
+
+    const count = document.getElementById('timeline-count');
+    if (count) count.textContent = `${this.filterLabel()} · 共 ${total} 篇`;
+
+    const wrap = document.getElementById('timeline-wrap');
+    if (wrap) this.renderItems(wrap, pageDates);
+
+    const pag = document.getElementById('timeline-pagination');
+    if (pag) {
+      pag.innerHTML = totalPages > 1 ? `
         <div class="pagination">
           <button class="btn btn-sm btn-secondary${this._page <= 1 ? ' disabled' : ''}" onclick="Timeline.setPage(${this._page - 1})">上一页</button>
           <span class="pagination-info">${this._page} / ${totalPages}</span>
           <button class="btn btn-sm btn-secondary${this._page >= totalPages ? ' disabled' : ''}" onclick="Timeline.setPage(${this._page + 1})">下一页</button>
-        </div>
-      ` : ''}
-    `;
-
-    this.renderItems(document.getElementById('timeline-wrap'), pageDates);
-  },
-
-  renderPage() {
-    const container = document.getElementById('page-container');
-    if (container) this.render(container);
+        </div>` : '';
+    }
   },
 
   /* 筛选后的完整日期列表（倒序） */
@@ -93,10 +110,11 @@ const Timeline = {
       if (!entry || !entry.content) return;
       const content = entry.content.replace(/<[^>]*>/g, '').trim();
       const imgs = entry.images || [];
+      const weekLabel = ['日', '一', '二', '三', '四', '五', '六'][new Date(d + 'T00:00:00').getDay()];
       html += `
         <div class="timeline-item">
           <span class="timeline-dot"></span>
-          <span class="timeline-date">${d}</span>
+          <span class="timeline-date">${d.slice(5)} 周${weekLabel}</span>
           <div class="timeline-card" onclick="Diary.showEditor('${d}')">
             <div class="timeline-card-text">${content || '(空)'}</div>
             ${imgs.length ? `<div class="timeline-imgs">${imgs.slice(0, 3).map(img => `<img src="${img}" alt="日记图片">`).join('')}</div>` : ''}
@@ -107,11 +125,10 @@ const Timeline = {
     wrap.innerHTML = html;
   },
 
-  /* ---- 筛选交互 ---- */
+  /* ---- 筛选交互（仅局部更新） ---- */
   setFilter(type) {
     const now = new Date();
     if (this._filter === type) {
-      /* 再点已选中的胶囊：回到全部 */
       this._filter = 'all';
       this._filterMonth = null;
       this._filterWeek = null;
@@ -123,25 +140,25 @@ const Timeline = {
       if (type === 'week') this._filterMonth = now.getMonth() + 1;
     }
     this._page = 1;
-    this.renderPage();
+    this.updateView();
   },
 
   setMonth(m) {
     this._filterMonth = m;
     this._filterWeek = null;
     this._page = 1;
-    this.renderPage();
+    this.updateView();
   },
 
   setWeek(w) {
     this._filterWeek = w;
     this._page = 1;
-    this.renderPage();
+    this.updateView();
   },
 
   setPage(p) {
     this._page = p;
-    this.renderPage();
+    this.updateView();
   },
 
   changeFilterYear(dir) {
@@ -149,7 +166,7 @@ const Timeline = {
     this._filterMonth = null;
     this._filterWeek = null;
     this._page = 1;
-    this.renderPage();
+    this.updateView();
   },
 
   changeFilterMonth(dir) {
@@ -159,7 +176,7 @@ const Timeline = {
     this._filterMonth = m;
     this._filterWeek = null;
     this._page = 1;
-    this.renderPage();
+    this.updateView();
   },
 
   /* ---- 面板渲染 ---- */

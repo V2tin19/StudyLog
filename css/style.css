@@ -601,7 +601,7 @@ tr:hover td { background: var(--bg-hover); }
   width: 2px; border-radius: 1px;
   background: var(--border-color);
 }
-.timeline-item { position: relative; padding: 0 0 26px; }
+.timeline-item { position: relative; padding: 0 0 26px; animation: fadeIn 0.3s ease; }
 .timeline-item:last-child { padding-bottom: 0; }
 .timeline-dot {
   position: absolute; left: 23px; top: 6px;
