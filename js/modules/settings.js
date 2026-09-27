@@ -110,7 +110,7 @@ const Settings = {
       <div class="card">
         <div class="card-title"><span>关于本站</span></div>
         <div class="text-sm" style="line-height:1.8;">
-          <p><strong>日常打卡</strong> · 个人管理工作台 v1.0</p>
+          <p><strong>StudyLog</strong> · 个人日常记录 v1.0</p>
           <p>一款轻量化个人日常记录 Web 网站</p>
           <p>专注服务个人记录、生活留存、数据复盘</p>
           <p class="mt-8">数据完全存储在您的本地浏览器中，不上传任何服务器</p>
