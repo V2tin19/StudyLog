@@ -19,7 +19,10 @@ const Comments = {
   content    TEXT    NOT NULL,
   created_at TEXT    NOT NULL,
   ip_hash    TEXT    NOT NULL DEFAULT '',
-  hidden     INTEGER NOT NULL DEFAULT 0
+  hidden     INTEGER NOT NULL DEFAULT 0,
+  reply      TEXT    NOT NULL DEFAULT '',
+  reply_at   TEXT    NOT NULL DEFAULT '',
+  location   TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(scope, target, hidden, id);
 CREATE INDEX IF NOT EXISTS idx_comments_ip ON comments(ip_hash, created_at);
@@ -28,6 +31,10 @@ CREATE TABLE IF NOT EXISTS comment_blocklist (
   ip_hash    TEXT PRIMARY KEY,
   created_at TEXT NOT NULL
 );`,
+
+  ALTER_SQL: `ALTER TABLE comments ADD COLUMN reply TEXT NOT NULL DEFAULT '';
+ALTER TABLE comments ADD COLUMN reply_at TEXT NOT NULL DEFAULT '';
+ALTER TABLE comments ADD COLUMN location TEXT NOT NULL DEFAULT '';`,
 
   filter: 'all',
   list: [],
@@ -168,19 +175,38 @@ CREATE TABLE IF NOT EXISTS comment_blocklist (
     const src = isBoard ? '留言簿' : ('日记 ' + (c.target || '').slice(5).replace('-', '/'));
     const ipShort = (c.ipHash || '').slice(0, 8);
     const blocked = this.blocked.some(b => b.ipHash === c.ipHash);
+    const loc = c.location || '未知';
 
     return `
-      <div class="comment-row${c.hidden ? ' is-hidden' : ''}">
+      <div class="comment-row${c.hidden ? ' is-hidden' : ''}" id="comment-row-${c.id}">
         <div class="comment-meta">
           <span class="comment-src${isBoard ? ' is-board' : ''}">${Utils.esc(src)}</span>
           <span class="comment-who">${Utils.esc(c.name || '访客')}</span>
+          <span class="comment-loc" title="发送者属地">属地 ${Utils.esc(loc)}</span>
           <span>${Utils.esc(this.timeLabel(c.createdAt))}</span>
           <span>地址 ${Utils.esc(ipShort)}…</span>
           ${c.hidden ? '<span class="comment-flag">已隐藏</span>' : ''}
           ${blocked ? '<span class="comment-flag">已拉黑</span>' : ''}
         </div>
         <div class="comment-text">${Utils.esc(c.content)}</div>
+        ${c.reply ? `
+          <div class="admin-comment-reply">
+            <div class="admin-reply-head">
+              <span class="admin-reply-badge">站主回复</span>
+              <span class="text-xs text-muted">${Utils.esc(this.timeLabel(c.replyAt))}</span>
+            </div>
+            <div class="admin-reply-text">${Utils.esc(c.reply)}</div>
+          </div>
+        ` : ''}
         <div class="comment-actions">
+          <button class="btn btn-sm btn-primary" onclick="Comments.openReply(${c.id})">
+            ${c.reply ? '编辑回复' : '回复'}
+          </button>
+          ${c.reply ? `
+            <button class="btn btn-sm btn-secondary" onclick="Comments.removeReply(${c.id})">
+              删除回复
+            </button>
+          ` : ''}
           <button class="btn btn-sm btn-secondary"
                   onclick="Comments.toggleHidden(${c.id}, ${c.hidden ? 'false' : 'true'})">
             ${c.hidden ? '恢复显示' : '隐藏'}
@@ -189,6 +215,7 @@ CREATE TABLE IF NOT EXISTS comment_blocklist (
             `<button class="btn btn-sm btn-secondary" onclick="Comments.blockIp('${ipShort}')">拉黑这个地址</button>`}
           <button class="btn btn-sm btn-danger" onclick="Comments.removeComment(${c.id})">彻底删除</button>
         </div>
+        <div id="reply-box-${c.id}" class="comment-reply-box hidden"></div>
       </div>
     `;
   },
@@ -222,8 +249,9 @@ CREATE TABLE IF NOT EXISTS comment_blocklist (
           把下面这段整个粘进去执行一次，然后回来点「刷新」。
         </div>
         <div class="setup-sql" id="setup-sql">${Utils.esc(this.SETUP_SQL)}</div>
-        <div class="flex gap-8 mt-16">
-          <button class="btn btn-sm btn-primary" onclick="Comments.copySql()">复制 SQL</button>
+        <div class="flex gap-8 mt-16" style="flex-wrap:wrap;">
+          <button class="btn btn-sm btn-primary" onclick="Comments.copySql()">复制建表 SQL</button>
+          <button class="btn btn-sm btn-secondary" onclick="Comments.copyAlterSql()">复制升级 SQL（老表补字段）</button>
           <button class="btn btn-sm btn-secondary" onclick="Comments.refresh()">建好了，刷新</button>
         </div>
         <div class="text-sm text-muted mt-8" id="setup-msg"></div>
@@ -239,11 +267,92 @@ CREATE TABLE IF NOT EXISTS comment_blocklist (
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(this.SETUP_SQL)
-        .then(() => msg('已复制，去 D1 控制台粘贴执行'))
+        .then(() => msg('已复制建表 SQL，去 D1 控制台粘贴执行'))
         .catch(() => msg('浏览器不让自动复制，手动选中上面那段吧'));
       return;
     }
     msg('浏览器不让自动复制，手动选中上面那段吧');
+  },
+
+  copyAlterSql() {
+    const msg = (text) => {
+      const el = document.getElementById('setup-msg');
+      if (el) el.textContent = text;
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(this.ALTER_SQL)
+        .then(() => msg('已复制升级 SQL（补充回复与属地字段），去 D1 控制台粘贴执行'))
+        .catch(() => msg('浏览器不让自动复制，手动选中上面那段吧'));
+      return;
+    }
+    msg('浏览器不让自动复制，手动选中上面那段吧');
+  },
+
+  /* ---- 回复操作 ---- */
+  openReply(id) {
+    const c = this.list.find(x => x.id === id);
+    if (!c) return;
+    const box = document.getElementById('reply-box-' + id);
+    if (!box) return;
+
+    box.classList.remove('hidden');
+    box.innerHTML = `
+      <div class="comment-reply-form">
+        <textarea id="reply-text-${id}" class="textarea" rows="3" maxlength="1000"
+          placeholder="写下对 ${Utils.esc(c.name || '访客')} 的回复…">${Utils.esc(c.reply || '')}</textarea>
+        <div class="flex gap-8 mt-8">
+          <button class="btn btn-sm btn-primary" onclick="Comments.saveReply(${id})">保存回复</button>
+          <button class="btn btn-sm btn-secondary" onclick="Comments.closeReply(${id})">取消</button>
+        </div>
+      </div>
+    `;
+    const textarea = document.getElementById('reply-text-' + id);
+    if (textarea) textarea.focus();
+  },
+
+  closeReply(id) {
+    const box = document.getElementById('reply-box-' + id);
+    if (box) {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+    }
+  },
+
+  async saveReply(id) {
+    const textarea = document.getElementById('reply-text-' + id);
+    if (!textarea) return;
+    const reply = (textarea.value || '').trim();
+    if (!reply) {
+      alert('请输入回复内容（若想删除已有回复，请点「删除回复」按钮）');
+      textarea.focus();
+      return;
+    }
+
+    try {
+      await this.request(this.API, {
+        method: 'PATCH',
+        body: JSON.stringify({ id, reply })
+      });
+      await this.refresh();
+    } catch (err) {
+      alert('保存回复失败：' + (err.message || err));
+    }
+  },
+
+  async removeReply(id) {
+    const ok = await Utils.confirm('确定删除对该留言的站主回复？');
+    if (!ok) return;
+
+    try {
+      await this.request(this.API, {
+        method: 'PATCH',
+        body: JSON.stringify({ id, reply: '' })
+      });
+      await this.refresh();
+    } catch (err) {
+      alert('删除回复失败：' + (err.message || err));
+    }
   },
 
   /* ---- 操作 ---- */

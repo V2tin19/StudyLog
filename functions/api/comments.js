@@ -21,7 +21,7 @@
 
 import {
   json, dbMissing, isValidDate,
-  isMissingTable, hashIp, clientIp, honeyPotHit, hasLink, isBlocked, isRateLimited
+  isMissingTable, isMissingColumn, parseLocation, hashIp, clientIp, honeyPotHit, hasLink, isBlocked, isRateLimited
 } from './_shared.js';
 
 const MAX_NAME = 24;
@@ -46,7 +46,9 @@ function toComment(row) {
     target: row.target || '',
     name: row.name || '',
     content: row.content || '',
-    createdAt: row.created_at || ''
+    createdAt: row.created_at || '',
+    reply: row.reply || '',
+    replyAt: row.reply_at || ''
   };
 }
 
@@ -96,14 +98,33 @@ export async function onRequestGet({ env, request }) {
 
   try {
     /* 多取一条来判断「还有没有更早的」，省掉一次 COUNT 查询 */
-    const { results } = await env.DB
-      .prepare(
-        `SELECT id, scope, target, name, content, created_at FROM comments
-         WHERE scope = ? AND target = ? AND hidden = 0
-         ORDER BY id ${order} LIMIT ? OFFSET ?`
-      )
-      .bind(scope, target, limit + 1, offset)
-      .all();
+    let results;
+    try {
+      const q = await env.DB
+        .prepare(
+          `SELECT id, scope, target, name, content, created_at, reply, reply_at FROM comments
+           WHERE scope = ? AND target = ? AND hidden = 0
+           ORDER BY id ${order} LIMIT ? OFFSET ?`
+        )
+        .bind(scope, target, limit + 1, offset)
+        .all();
+      results = q.results;
+    } catch (colErr) {
+      if (isMissingColumn(colErr)) {
+        /* 老表还没跑 ALTER TABLE 加 reply 列，降级查询保证不挂 */
+        const q = await env.DB
+          .prepare(
+            `SELECT id, scope, target, name, content, created_at FROM comments
+             WHERE scope = ? AND target = ? AND hidden = 0
+             ORDER BY id ${order} LIMIT ? OFFSET ?`
+          )
+          .bind(scope, target, limit + 1, offset)
+          .all();
+        results = q.results;
+      } else {
+        throw colErr;
+      }
+    }
 
     const rows = results || [];
     const hasMore = rows.length > limit;
@@ -167,13 +188,30 @@ export async function onRequestPost({ env, request }) {
     }
 
     const createdAt = new Date().toISOString();
-    const res = await env.DB
-      .prepare(
-        `INSERT INTO comments (scope, target, name, content, created_at, ip_hash, hidden)
-         VALUES (?, ?, ?, ?, ?, ?, 0)`
-      )
-      .bind(scope, target, name, content, createdAt, ipHash)
-      .run();
+    const location = parseLocation(request);
+
+    let res;
+    try {
+      res = await env.DB
+        .prepare(
+          `INSERT INTO comments (scope, target, name, content, created_at, ip_hash, hidden, reply, reply_at, location)
+           VALUES (?, ?, ?, ?, ?, ?, 0, '', '', ?)`
+        )
+        .bind(scope, target, name, content, createdAt, ipHash, location)
+        .run();
+    } catch (colErr) {
+      if (isMissingColumn(colErr)) {
+        res = await env.DB
+          .prepare(
+            `INSERT INTO comments (scope, target, name, content, created_at, ip_hash, hidden)
+             VALUES (?, ?, ?, ?, ?, ?, 0)`
+          )
+          .bind(scope, target, name, content, createdAt, ipHash)
+          .run();
+      } else {
+        throw colErr;
+      }
+    }
 
     return json(
       {
@@ -184,7 +222,9 @@ export async function onRequestPost({ env, request }) {
           target,
           name,
           content,
-          createdAt
+          createdAt,
+          reply: '',
+          replyAt: ''
         }
       },
       200,

@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFA
 留言、书目荐读、目标推荐分别是后面几轮才有的功能。它们是**访客也能写**的那几个入口，各有一张表，外加共用的一张拉黑名单。已有数据库直接补这几条，不用重来：
 
 ```sql
-CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, scope TEXT NOT NULL DEFAULT 'diary', target TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '', content TEXT NOT NULL, created_at TEXT NOT NULL, ip_hash TEXT NOT NULL DEFAULT '', hidden INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, scope TEXT NOT NULL DEFAULT 'diary', target TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '', content TEXT NOT NULL, created_at TEXT NOT NULL, ip_hash TEXT NOT NULL DEFAULT '', hidden INTEGER NOT NULL DEFAULT 0, reply TEXT NOT NULL DEFAULT '', reply_at TEXT NOT NULL DEFAULT '', location TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(scope, target, hidden, id);
 CREATE INDEX IF NOT EXISTS idx_comments_ip ON comments(ip_hash, created_at);
 CREATE TABLE IF NOT EXISTS comment_blocklist (ip_hash TEXT PRIMARY KEY, created_at TEXT NOT NULL);
@@ -128,6 +128,16 @@ CREATE INDEX IF NOT EXISTS idx_suggest_ip ON book_suggestions(ip_hash, created_a
 CREATE TABLE IF NOT EXISTS goal_suggestions (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT NOT NULL DEFAULT '', imported_at TEXT NOT NULL DEFAULT '', ip_hash TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS idx_gsuggest_status ON goal_suggestions(status, id);
 CREATE INDEX IF NOT EXISTS idx_gsuggest_ip ON goal_suggestions(ip_hash, created_at);
+```
+
+#### 升级：已有 comments 表增加「站主回复」与「IP 属地」字段
+
+如果之前已经建过 `comments` 表，只需在 D1 Console 执行这三条：
+
+```sql
+ALTER TABLE comments ADD COLUMN reply TEXT NOT NULL DEFAULT '';
+ALTER TABLE comments ADD COLUMN reply_at TEXT NOT NULL DEFAULT '';
+ALTER TABLE comments ADD COLUMN location TEXT NOT NULL DEFAULT '';
 ```
 
 > **没建这些表会怎样**：对应的那一块只是**不显示**，不会报错。

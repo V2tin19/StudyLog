@@ -879,12 +879,23 @@
   /* 一条留言。outerClass 分开日记（.pub-comment）和留言簿（.pub-board-item），
      内部那几个类两边共用。 */
   function commentHtml(c, outerClass) {
+    var replyHtml = c.reply ? (
+      '<div class="pub-comment-reply">' +
+        '<div class="pub-reply-head">' +
+          '<span class="pub-reply-badge">站主回复</span>' +
+          (c.replyAt ? '<span class="pub-reply-time">' + esc(shortTime(c.replyAt)) + '</span>' : '') +
+        '</div>' +
+        '<div class="pub-reply-text">' + esc(c.reply) + '</div>' +
+      '</div>'
+    ) : '';
+
     return '<div class="' + (outerClass || 'pub-comment') + '">' +
       '<div class="pub-comment-av">' + esc(nameInitial(c.name)) + '</div>' +
       '<div class="pub-comment-main">' +
         '<div class="pub-comment-head"><span class="pub-comment-name">' +
           esc(c.name || '访客') + '</span> · ' + esc(shortTime(c.createdAt)) + '</div>' +
         '<div class="pub-comment-text">' + esc(c.content || '') + '</div>' +
+        replyHtml +
       '</div>' +
     '</div>';
   }

@@ -25,8 +25,15 @@ CREATE TABLE IF NOT EXISTS comments (
   content    TEXT    NOT NULL,
   created_at TEXT    NOT NULL,
   ip_hash    TEXT    NOT NULL DEFAULT '',
-  hidden     INTEGER NOT NULL DEFAULT 0
+  hidden     INTEGER NOT NULL DEFAULT 0,
+  reply      TEXT    NOT NULL DEFAULT '',
+  reply_at   TEXT    NOT NULL DEFAULT '',
+  location   TEXT    NOT NULL DEFAULT ''
 );
+-- 已有老表无痛升级语句（在 D1 Console 执行）：
+-- ALTER TABLE comments ADD COLUMN reply TEXT NOT NULL DEFAULT '';
+-- ALTER TABLE comments ADD COLUMN reply_at TEXT NOT NULL DEFAULT '';
+-- ALTER TABLE comments ADD COLUMN location TEXT NOT NULL DEFAULT '';
 -- 公开读（按 scope+target 取列表）和 counts 聚合都吃这个索引
 CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(scope, target, hidden, id);
 -- 限流查询：同 IP 最近一分钟

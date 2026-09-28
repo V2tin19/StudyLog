@@ -359,6 +359,10 @@ img { max-width: 100%; height: auto; display: block; }
 }
 .comment-src.is-board { color: var(--accent-orange); }
 .comment-who { font-size: 0.82rem; font-weight: 500; color: var(--text-primary); }
+.comment-loc {
+  font-size: 0.68rem; color: var(--accent-green);
+  background: rgba(140, 184, 160, 0.15); border-radius: 999px; padding: 1px 7px;
+}
 .comment-flag {
   font-size: 0.68rem; color: var(--accent-red);
   border: 1px solid currentColor; border-radius: 999px; padding: 1px 8px;
@@ -367,7 +371,29 @@ img { max-width: 100%; height: auto; display: block; }
   font-size: 0.88rem; line-height: 1.8; margin-top: 6px;
   white-space: pre-wrap; word-break: break-word;
 }
+.admin-comment-reply {
+  margin-top: 10px; padding: 9px 13px;
+  background: var(--bg-tertiary); border-left: 3px solid var(--accent-blue);
+  border-radius: var(--radius-sm);
+}
+.admin-reply-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+}
+.admin-reply-badge {
+  font-size: 0.68rem; font-weight: 500; color: var(--accent-blue);
+  background: rgba(123, 164, 199, 0.15); border-radius: 4px; padding: 1px 6px;
+}
+.admin-reply-text {
+  font-size: 0.85rem; line-height: 1.65; color: var(--text-primary);
+  white-space: pre-wrap; word-break: break-word;
+}
 .comment-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.comment-reply-box { margin-top: 10px; }
+.comment-reply-form {
+  padding: 12px; background: var(--bg-tertiary);
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+}
+.comment-reply-form .textarea { min-height: 64px; font-size: 0.84rem; }
 
 /* 建表 SQL 代码块：整段可以选中复制 */
 .setup-sql {

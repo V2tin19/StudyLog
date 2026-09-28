@@ -116,6 +116,82 @@ export function isMissingTable(err) {
   return /no such table/i.test(String((err && err.message) || ''));
 }
 
+/** 缺少字段的报错识别。D1 报的是 "no such column: xxx" */
+export function isMissingColumn(err) {
+  return /no such column/i.test(String((err && err.message) || ''));
+}
+
+/** 常见国家与地区映射 */
+const CN_PROVINCES = {
+  'BJ': '北京', 'TJ': '天津', 'HE': '河北', 'SX': '山西', 'NM': '内蒙古',
+  'LN': '辽宁', 'JL': '吉林', 'HL': '黑龙江', 'SH': '上海', 'JS': '江苏',
+  'ZJ': '浙江', 'AH': '安徽', 'FJ': '福建', 'JX': '江西', 'SD': '山东',
+  'HA': '河南', 'HEN': '河南', 'HB': '湖北', 'HUB': '湖北', 'HN': '湖南', 'HUN': '湖南',
+  'GD': '广东', 'GX': '广西', 'HI': '海南', 'HAN': '海南', 'CQ': '重庆',
+  'SC': '四川', 'GZ': '贵州', 'YN': '云南', 'XZ': '西藏', 'SN': '陕西',
+  'SAX': '陕西', 'GS': '甘肃', 'QH': '青海', 'NX': '宁夏', 'XJ': '新疆',
+  'HK': '中国香港', 'MO': '中国澳门', 'TW': '中国台湾',
+  'BEIJING': '北京', 'TIANJIN': '天津', 'HEBEI': '河北', 'SHANXI': '山西',
+  'INNER MONGOLIA': '内蒙古', 'NEIMENGGU': '内蒙古', 'LIAONING': '辽宁',
+  'JILIN': '吉林', 'HEILONGJIANG': '黑龙江', 'SHANGHAI': '上海', 'JIANGSU': '江苏',
+  'ZHEJIANG': '浙江', 'ANHUI': '安徽', 'FUJIAN': '福建', 'JIANGXI': '江西',
+  'SHANDONG': '山东', 'HENAN': '河南', 'HUBEI': '湖北', 'HUNAN': '湖南',
+  'GUANGDONG': '广东', 'GUANGXI': '广西', 'HAINAN': '海南', 'CHONGQING': '重庆',
+  'SICHUAN': '四川', 'GUIZHOU': '贵州', 'YUNNAN': '云南', 'TIBET': '西藏',
+  'XIZANG': '西藏', 'SHAANXI': '陕西', 'GANSU': '甘肃', 'QINGHAI': '青海',
+  'NINGXIA': '宁夏', 'XINJIANG': '新疆', 'HONG KONG': '中国香港',
+  'MACAO': '中国澳门', 'MACAU': '中国澳门', 'TAIWAN': '中国台湾'
+};
+
+const COMMON_COUNTRIES = {
+  'US': '美国', 'JP': '日本', 'GB': '英国', 'UK': '英国', 'CA': '加拿大',
+  'AU': '澳大利亚', 'SG': '新加坡', 'KR': '韩国', 'DE': '德国', 'FR': '法国',
+  'RU': '俄罗斯', 'MY': '马来西亚', 'TH': '泰国', 'VN': '越南', 'PH': '菲律宾'
+};
+
+/**
+ * 从 Cloudflare 请求中解析访客所在的省份/地区属地。
+ * 依靠 Cloudflare Pages 原生挂载的 request.cf，零延迟、零外部依赖、不记录明文 IP。
+ */
+export function parseLocation(request) {
+  if (!request) return '未知';
+
+  let testLoc = request.headers && request.headers.get('x-test-location');
+  if (testLoc) {
+    try { testLoc = decodeURIComponent(testLoc); } catch {}
+    return testLoc.trim();
+  }
+
+  const ip = clientIp(request);
+  if (ip === '127.0.0.1' || ip === '::1' || ip === 'local' || ip === 'localhost') {
+    return '本地';
+  }
+
+  const cf = request.cf || {};
+  const country = (cf.country || (request.headers && request.headers.get('CF-IPCountry')) || '').toUpperCase().trim();
+  const region = (cf.region || '').trim();
+  const regionCode = (cf.regionCode || '').toUpperCase().trim();
+
+  if (country === 'CN') {
+    if (regionCode && CN_PROVINCES[regionCode]) return CN_PROVINCES[regionCode];
+    const cleanRegion = region.toUpperCase();
+    if (cleanRegion && CN_PROVINCES[cleanRegion]) return CN_PROVINCES[cleanRegion];
+    for (const [k, v] of Object.entries(CN_PROVINCES)) {
+      if (k.length > 2 && cleanRegion.includes(k)) return v;
+    }
+    return '中国';
+  }
+
+  if (country === 'HK') return '中国香港';
+  if (country === 'MO') return '中国澳门';
+  if (country === 'TW') return '中国台湾';
+
+  if (country && COMMON_COUNTRIES[country]) return COMMON_COUNTRIES[country];
+  if (country) return country;
+
+  return '未知';
+}
+
 /** IP → 加盐 SHA-256。库里只存这个，不存 IP 原文 */
 export async function hashIp(ip, salt) {
   const bytes = new TextEncoder().encode(String(salt || 'studylog') + '|' + String(ip || ''));

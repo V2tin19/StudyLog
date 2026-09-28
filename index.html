@@ -263,6 +263,38 @@
     .pub-comment-name { color: var(--text-primary); font-weight: 500; }
     .pub-comment-text { font-size: 0.86rem; line-height: 1.7; margin-top: 2px; word-break: break-word; }
 
+    /* 站主回复样式 */
+    .pub-comment-reply {
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: var(--bg-tertiary);
+      border-left: 3px solid var(--accent-blue);
+      border-radius: var(--radius-sm);
+    }
+    .pub-reply-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 3px;
+    }
+    .pub-reply-badge {
+      font-size: 0.66rem;
+      font-weight: 500;
+      color: var(--accent-blue);
+      background: rgba(123, 164, 199, 0.15);
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .pub-reply-time { color: var(--text-muted); }
+    .pub-reply-text {
+      font-size: 0.84rem;
+      line-height: 1.65;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     /* 发表单：昵称 + 内容 + 按钮 */
     .pub-cform { margin-top: 12px; }
     .pub-cform-row { display: flex; gap: 8px; align-items: flex-start; }

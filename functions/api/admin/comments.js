@@ -14,7 +14,7 @@
  * 「删除」是真删，给那种必须清掉的场景。
  */
 
-import { json, dbMissing, requireAdmin, isMissingTable, blockIp, unblockIp, BLOCKLIST_TABLE } from '../_shared.js';
+import { json, dbMissing, requireAdmin, isMissingTable, isMissingColumn, blockIp, unblockIp, BLOCKLIST_TABLE } from '../_shared.js';
 
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
@@ -31,7 +31,10 @@ function toAdminComment(row) {
     content: row.content || '',
     createdAt: row.created_at || '',
     hidden: !!row.hidden,
-    ipHash: row.ip_hash || ''
+    ipHash: row.ip_hash || '',
+    reply: row.reply || '',
+    replyAt: row.reply_at || '',
+    location: row.location || ''
   };
 }
 
@@ -103,7 +106,7 @@ export async function onRequestGet({ env, request }) {
   }
 }
 
-/* ---------------- PATCH：隐藏 / 恢复 ---------------- */
+/* ---------------- PATCH：隐藏 / 恢复 / 回复 ---------------- */
 export async function onRequestPatch({ env, request }) {
   if (!env.DB) return dbMissing();
   const rejected = requireAdmin(request, env);
@@ -120,13 +123,42 @@ export async function onRequestPatch({ env, request }) {
   if (!Number.isFinite(id) || id <= 0) {
     return json({ error: '缺少有效的留言 id' }, 400, NO_STORE);
   }
-  const hidden = body && body.hidden ? 1 : 0;
 
   try {
-    await env.DB.prepare('UPDATE comments SET hidden = ? WHERE id = ?').bind(hidden, id).run();
-    return json({ ok: true, id, hidden: !!hidden }, 200, NO_STORE);
+    const sets = [];
+    const params = [];
+    const out = { ok: true, id };
+
+    if (body && body.hidden !== undefined) {
+      const hidden = body.hidden ? 1 : 0;
+      sets.push('hidden = ?');
+      params.push(hidden);
+      out.hidden = !!hidden;
+    }
+
+    if (body && body.reply !== undefined) {
+      const reply = String(body.reply || '').trim().slice(0, 1000);
+      const replyAt = reply ? new Date().toISOString() : '';
+      sets.push('reply = ?');
+      params.push(reply);
+      sets.push('reply_at = ?');
+      params.push(replyAt);
+      out.reply = reply;
+      out.replyAt = replyAt;
+    }
+
+    if (!sets.length) {
+      return json({ error: '没有需要更新的字段' }, 400, NO_STORE);
+    }
+
+    params.push(id);
+    await env.DB.prepare(`UPDATE comments SET ${sets.join(', ')} WHERE id = ?`).bind(...params).run();
+    return json(out, 200, NO_STORE);
   } catch (err) {
     if (isMissingTable(err)) return json({ error: NEED_TABLE }, 500, NO_STORE);
+    if (isMissingColumn(err)) {
+      return json({ error: '留言表缺少 reply 或 reply_at 字段，请在 D1 执行：ALTER TABLE comments ADD COLUMN reply TEXT NOT NULL DEFAULT \'\'; ALTER TABLE comments ADD COLUMN reply_at TEXT NOT NULL DEFAULT \'\';' }, 500, NO_STORE);
+    }
     return json({ error: '修改失败：' + err.message }, 500, NO_STORE);
   }
 }
