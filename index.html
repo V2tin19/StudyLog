@@ -574,72 +574,6 @@
       .pub-cheer-btn { width: 100%; justify-content: center; }
       .pub-cheer-float { right: 14px; bottom: 18px; }
       .pub-cheer-float-text { display: none; }
-      .pub-threebody-canvas-box { height: 180px; }
-      .pub-threebody-en { display: none; }
-    }
-
-    /* 三体混沌微引力仪 */
-    .pub-threebody-card {
-      margin-top: 36px;
-      padding: 14px 16px 16px;
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-sm);
-      transition: border-color var(--transition);
-    }
-    .pub-threebody-card:hover {
-      border-color: var(--accent-blue);
-    }
-    .pub-threebody-head {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 10px; margin-bottom: 10px; flex-wrap: wrap;
-    }
-    .pub-threebody-title-wrap {
-      display: flex; align-items: baseline; gap: 8px;
-    }
-    .pub-threebody-indicator {
-      display: inline-block; width: 6px; height: 6px;
-      border-radius: 50%; background: var(--accent-blue);
-      box-shadow: 0 0 8px var(--accent-blue);
-      align-self: center;
-    }
-    .pub-threebody-title {
-      font-size: 0.88rem; font-weight: 600; color: var(--text-primary);
-    }
-    .pub-threebody-en {
-      font-size: 0.72rem; color: var(--text-muted); font-family: monospace; letter-spacing: 0.02em;
-    }
-    .pub-threebody-ctrls {
-      display: flex; align-items: center; gap: 8px;
-    }
-    .pub-threebody-stat {
-      font-size: 0.74rem; color: var(--text-muted); font-variant-numeric: tabular-nums;
-      font-family: monospace;
-    }
-    .pub-threebody-btn {
-      padding: 3px 9px; font-size: 0.72rem; border-radius: var(--radius-sm);
-      border: 1px solid var(--border-color); background: var(--bg-primary);
-      color: var(--text-secondary); cursor: pointer; transition: all var(--transition);
-    }
-    .pub-threebody-btn:hover {
-      color: var(--text-primary); border-color: var(--text-secondary);
-    }
-    .pub-threebody-canvas-box {
-      position: relative; width: 100%; height: 210px;
-      border-radius: var(--radius-md); overflow: hidden;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-light);
-      cursor: crosshair; touch-action: none;
-    }
-    .pub-threebody-canvas-box canvas {
-      width: 100%; height: 100%; display: block;
-    }
-    .pub-threebody-tip {
-      position: absolute; bottom: 8px; right: 10px;
-      font-size: 0.68rem; color: var(--text-muted);
-      pointer-events: none; opacity: 0.85; user-select: none;
-      font-family: monospace; transition: opacity 0.4s ease;
     }
   </style>
 </head>
@@ -697,26 +631,6 @@
 
     <section class="pub-panel hidden" id="pub-panel-board">
       <div id="board-body"></div>
-    </section>
-
-    <!-- 三体混沌微引力仪 -->
-    <section class="pub-threebody-card" id="pub-threebody-card" aria-label="三体混沌微引力仪">
-      <div class="pub-threebody-head">
-        <div class="pub-threebody-title-wrap">
-          <span class="pub-threebody-indicator" aria-hidden="true"></span>
-          <span class="pub-threebody-title">三体微引力仪</span>
-          <span class="pub-threebody-en">Three-Body Perturbation</span>
-        </div>
-        <div class="pub-threebody-ctrls">
-          <span class="pub-threebody-stat" id="threebody-stat">微扰: 0</span>
-          <button type="button" class="pub-threebody-btn" id="threebody-clear-btn" title="清空历史轨迹">清轨</button>
-          <button type="button" class="pub-threebody-btn" id="threebody-reset-btn" title="重置轨道">重置</button>
-        </div>
-      </div>
-      <div class="pub-threebody-canvas-box" id="threebody-box">
-        <canvas id="pub-threebody-canvas"></canvas>
-        <div class="pub-threebody-tip" id="threebody-tip">点击或拖动以注入引力微扰</div>
-      </div>
     </section>
   </main>
 
