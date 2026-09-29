@@ -1334,19 +1334,64 @@
   var cheerAudioCtx = null;
 
   var CHEER_WORDS = [
-    '☕ 递上一杯热咖啡 +1',
-    '✨ 灵感加倍！',
-    '📖 专注力 +100%',
-    '🌱 日拱一卒，功不唐捐',
-    '💪 今天也超棒！',
-    '🔥 动力拉满！',
-    '🌟 闪闪发光的小进步',
-    '🌙 学累了记得伸个懒腰',
-    '🐟 敲一下木鱼，无Bug',
-    '🎉 步履不停，日有所得',
-    '☕ 再续一杯！能量满格',
-    '📚 沉浸在书香里',
-    '💡 豁然开朗的小瞬间'
+    // 各种语言的“咖啡”
+    'Coffee',
+    'Café',
+    'Kaffee',
+    'Caffè',
+    'Kahve',
+    'قهوة',
+    'Кофе',
+    'コーヒー',
+    '커피',
+    'Καφές',
+    'Cà phê',
+    'Kawa',
+    'Koffie',
+    'Kaffe',
+    '咖啡',
+
+    // 单个 Emoji 纯净气泡
+    '☕',
+    '✨',
+    '✦',
+    '·',
+    '✧',
+    '🪐',
+    '💡',
+    '🌱',
+    '🌙',
+    '☄️',
+    '🛸',
+    '🫧',
+
+    // 知名短格言与散漫随笔（无解释）
+    'Eppur si muove',
+    'Πάντα ῥεῖ',
+    'Eureka!',
+    'Cogito, ergo sum',
+    'Festina lente',
+    'Sub specie aeternitatis',
+    'Per aspera ad astra',
+    'Amor fati',
+    'Gott würfelt nicht',
+    'More is different',
+    'So it goes',
+    'Pale Blue Dot',
+    'Entropy increases',
+    'Wanderlust',
+    '42',
+    '道法自然',
+    '灵感加倍！',
+    '步履不停',
+    '微风吹过',
+    'Hello, World.',
+    'Quantum tunneling',
+    'Carpe diem',
+    '喝杯水',
+    '递杯咖啡',
+    'Signal to noise',
+    'c = 299,792,458 m/s'
   ];
 
   function getMyCheers() {
@@ -1454,7 +1499,7 @@
     var rect = btn.getBoundingClientRect();
     var cx = rect.left + rect.width / 2;
     var cy = rect.top + rect.height / 2;
-    var emojis = ['✨', '⭐', '☕', '💡', '🌟', '🎉'];
+    var emojis = ['✨', '☕', '✦', '·', '✧', '🪐'];
 
     for (var i = 0; i < 8; i++) {
       var p = document.createElement('div');
@@ -1554,12 +1599,292 @@
   }
 
   /* =========================================================
+     三体微引力混沌仪 (Three-Body Micro Simulator)
+     ========================================================= */
+
+  function initThreeBody() {
+    var canvas = document.getElementById('pub-threebody-canvas');
+    var box = document.getElementById('threebody-box');
+    var statEl = document.getElementById('threebody-stat');
+    var resetBtn = document.getElementById('threebody-reset-btn');
+    var clearBtn = document.getElementById('threebody-clear-btn');
+    var tipEl = document.getElementById('threebody-tip');
+    if (!canvas || !box) return;
+
+    var ctx = canvas.getContext('2d');
+    var perturbCount = 0;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var width = 0;
+    var height = 0;
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+    try {
+      var themeObserver = new MutationObserver(function () {
+        isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        clearCanvas(true);
+      });
+      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    } catch (_) {}
+
+    // 三体经典周期性 8 字拟合轨道（figure-eight choreography）
+    // 初始状态下 3 颗星体沿一条闭合 8 字形轨道永续穿梭。
+    // 一旦引入哪怕微小的外力扰动，系统立即根据李雅普诺夫指数演化为非线性混沌。
+    var INITIAL_STATE = {
+      r1: [0.97000436, -0.24308753],
+      r2: [-0.97000436, 0.24308753],
+      r3: [0, 0],
+      v1: [0.46620531, 0.43236573],
+      v2: [0.46620531, 0.43236573],
+      v3: [-2 * 0.46620531, -2 * 0.43236573]
+    };
+
+    var bodies = [];
+    var ripples = [];
+    var G = 1.0;
+    var softeningSq = 0.05; // 软化参数，避免两星瞬时重合发生除零奇异
+    var dt = 0.015;         // 积分时间微元
+
+    var COLORS = [
+      { fill: '#7ba4c7', glow: 'rgba(123, 164, 199, 0.35)' },
+      { fill: '#d4a76a', glow: 'rgba(212, 167, 106, 0.35)' },
+      { fill: '#8cb8a0', glow: 'rgba(140, 184, 160, 0.35)' }
+    ];
+
+    function resetBodies() {
+      bodies = [
+        { x: INITIAL_STATE.r1[0], y: INITIAL_STATE.r1[1], vx: INITIAL_STATE.v1[0], vy: INITIAL_STATE.v1[1], m: 1, c: COLORS[0] },
+        { x: INITIAL_STATE.r2[0], y: INITIAL_STATE.r2[1], vx: INITIAL_STATE.v2[0], vy: INITIAL_STATE.v2[1], m: 1, c: COLORS[1] },
+        { x: INITIAL_STATE.r3[0], y: INITIAL_STATE.r3[1], vx: INITIAL_STATE.v3[0], vy: INITIAL_STATE.v3[1], m: 1, c: COLORS[2] }
+      ];
+    }
+
+    function clearCanvas(full) {
+      if (!ctx || width <= 0 || height <= 0) return;
+      ctx.save();
+      ctx.fillStyle = isDark ? '#1a1a1e' : '#f5f0eb';
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    }
+
+    function resize() {
+      var rect = box.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      width = rect.width;
+      height = rect.height;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+      clearCanvas(true);
+    }
+
+    function computeAccelerations(bList) {
+      var accs = [{ ax: 0, ay: 0 }, { ax: 0, ay: 0 }, { ax: 0, ay: 0 }];
+      for (var i = 0; i < 3; i++) {
+        for (var j = i + 1; j < 3; j++) {
+          var dx = bList[j].x - bList[i].x;
+          var dy = bList[j].y - bList[i].y;
+          var distSq = dx * dx + dy * dy + softeningSq;
+          var dist = Math.sqrt(distSq);
+          var force = G / (distSq * dist);
+          var fx = force * dx;
+          var fy = force * dy;
+          accs[i].ax += fx * bList[j].m;
+          accs[i].ay += fy * bList[j].m;
+          accs[j].ax -= fx * bList[j].m;
+          accs[j].ay -= fy * bList[j].m;
+        }
+        // 广义微弱向心势阱（超出安全视界半径时施加非线性回弹力，避免三体混沌离心彻底飞出画布）
+        var rSq = bList[i].x * bList[i].x + bList[i].y * bList[i].y;
+        if (rSq > 3.24) {
+          var r = Math.sqrt(rSq);
+          var over = r - 1.8;
+          accs[i].ax -= 0.35 * over * (bList[i].x / r);
+          accs[i].ay -= 0.35 * over * (bList[i].y / r);
+        }
+      }
+      return accs;
+    }
+
+    // Velocity Verlet 辛积分（天体力学标准解法，长期轨道能量无漂移）
+    function stepPhysics() {
+      var accs = computeAccelerations(bodies);
+      for (var i = 0; i < 3; i++) {
+        bodies[i].vx += 0.5 * accs[i].ax * dt;
+        bodies[i].vy += 0.5 * accs[i].ay * dt;
+        bodies[i].x += bodies[i].vx * dt;
+        bodies[i].y += bodies[i].vy * dt;
+      }
+      var newAccs = computeAccelerations(bodies);
+      for (var j = 0; j < 3; j++) {
+        bodies[j].vx += 0.5 * newAccs[j].ax * dt;
+        bodies[j].vy += 0.5 * newAccs[j].ay * dt;
+      }
+    }
+
+    function toScreen(nx, ny) {
+      var scale = Math.min(width, height) * 0.36;
+      return {
+        x: width / 2 + nx * scale,
+        y: height / 2 + ny * scale
+      };
+    }
+
+    function toNormalized(sx, sy) {
+      var scale = Math.min(width, height) * 0.36;
+      return {
+        x: (sx - width / 2) / (scale || 1),
+        y: (sy - height / 2) / (scale || 1)
+      };
+    }
+
+    function applyPerturbation(sx, sy) {
+      var norm = toNormalized(sx, sy);
+      perturbCount++;
+      if (statEl) statEl.textContent = '微扰: ' + perturbCount;
+      if (tipEl) tipEl.style.opacity = '0';
+
+      ripples.push({ x: sx, y: sy, r: 2, maxR: 44, alpha: 0.8 });
+
+      for (var i = 0; i < 3; i++) {
+        var dx = bodies[i].x - norm.x;
+        var dy = bodies[i].y - norm.y;
+        var dist = Math.sqrt(dx * dx + dy * dy) + 0.16;
+        var impulse = 0.18 / dist;
+        bodies[i].vx += (dx / dist) * impulse + (Math.random() - 0.5) * 0.03;
+        bodies[i].vy += (dy / dist) * impulse + (Math.random() - 0.5) * 0.03;
+      }
+    }
+
+    var animating = false;
+    var rafId = null;
+
+    function render() {
+      if (!animating || width <= 0 || height <= 0) return;
+
+      // 覆盖微透明背景实现优雅拖尾
+      ctx.fillStyle = isDark ? 'rgba(26, 26, 30, 0.075)' : 'rgba(245, 240, 235, 0.09)';
+      ctx.fillRect(0, 0, width, height);
+
+      // 每帧执行 2 次微分步，运动更丝滑
+      stepPhysics();
+      stepPhysics();
+
+      // 绘制涟漪扩散
+      for (var rIdx = ripples.length - 1; rIdx >= 0; rIdx--) {
+        var rp = ripples[rIdx];
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+        ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, ' + rp.alpha + ')' : 'rgba(44, 44, 44, ' + rp.alpha + ')';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+
+        rp.r += 2.2;
+        rp.alpha *= 0.92;
+        if (rp.alpha < 0.03 || rp.r >= rp.maxR) {
+          ripples.splice(rIdx, 1);
+        }
+      }
+
+      // 绘制 3 颗星体
+      for (var b = 0; b < 3; b++) {
+        var s = toScreen(bodies[b].x, bodies[b].y);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = bodies[b].c.glow;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 3.2, 0, Math.PI * 2);
+        ctx.fillStyle = bodies[b].c.fill;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      rafId = requestAnimationFrame(render);
+    }
+
+    // 交互监听
+    var isPointerDown = false;
+    box.addEventListener('pointerdown', function (e) {
+      isPointerDown = true;
+      var r = box.getBoundingClientRect();
+      applyPerturbation(e.clientX - r.left, e.clientY - r.top);
+    });
+    box.addEventListener('pointermove', function (e) {
+      if (!isPointerDown) return;
+      var r = box.getBoundingClientRect();
+      applyPerturbation(e.clientX - r.left, e.clientY - r.top);
+    });
+    window.addEventListener('pointerup', function () { isPointerDown = false; });
+    window.addEventListener('pointercancel', function () { isPointerDown = false; });
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        perturbCount = 0;
+        if (statEl) statEl.textContent = '微扰: 0';
+        if (tipEl) tipEl.style.opacity = '0.85';
+        resetBodies();
+        clearCanvas(true);
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        clearCanvas(true);
+      });
+    }
+
+    // 离屏自动暂停以彻底节约 CPU
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        var visible = entries[0].isIntersecting;
+        if (visible) {
+          if (width <= 0 || height <= 0) resize();
+          if (!animating) {
+            animating = true;
+            rafId = requestAnimationFrame(render);
+          }
+        } else if (!visible && animating) {
+          animating = false;
+          if (rafId) cancelAnimationFrame(rafId);
+        }
+      }, { threshold: 0.05 });
+      io.observe(box);
+    } else {
+      animating = true;
+      rafId = requestAnimationFrame(render);
+    }
+
+    // 标签页切换休眠
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden && animating) {
+        animating = false;
+        if (rafId) cancelAnimationFrame(rafId);
+      } else if (!document.hidden && !animating) {
+        var r = box.getBoundingClientRect();
+        if (r.top < window.innerHeight && r.bottom > 0) {
+          animating = true;
+          rafId = requestAnimationFrame(render);
+        }
+      }
+    });
+
+    window.addEventListener('resize', resize, { passive: true });
+    resetBodies();
+    resize();
+  }
+
+  /* =========================================================
      启动
      ========================================================= */
 
   document.addEventListener('DOMContentLoaded', function () {
     initTheme();
     initCheer();
+    initThreeBody();
 
     var tabs = document.getElementById('pub-tabs');
     if (tabs) {
