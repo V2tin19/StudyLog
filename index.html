@@ -22,8 +22,150 @@
     .pub-brand span { color: var(--accent-blue); }
     .pub-main { max-width: 720px; margin: 0 auto; padding: 28px 20px 64px; }
 
-    .pub-intro { margin-bottom: 22px; }
+    .pub-intro {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; margin-bottom: 22px; flex-wrap: wrap;
+    }
+    .pub-intro-content { flex: 1; min-width: 180px; }
     .pub-intro h1 { font-size: 1.35rem; font-weight: 600; line-height: 1.5; }
+
+    /* 访客打气 / 递咖啡互动组件 */
+    .pub-cheer-widget {
+      position: relative;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+    }
+    .pub-cheer-btn {
+      position: relative;
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 7px 16px 7px 13px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: 999px;
+      box-shadow: var(--shadow-sm);
+      cursor: pointer; user-select: none;
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .pub-cheer-btn:hover {
+      border-color: var(--accent-orange);
+      box-shadow: 0 4px 14px rgba(224, 112, 80, 0.15);
+      transform: translateY(-1px);
+    }
+    .pub-cheer-btn:active, .pub-cheer-btn.anim-press {
+      transform: scale(0.92);
+    }
+    .pub-cheer-btn.anim-pop {
+      animation: cheerButtonPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .pub-cheer-icon {
+      font-size: 1.25rem; line-height: 1; display: inline-block;
+      transition: transform 0.25s ease;
+    }
+    .pub-cheer-btn:hover .pub-cheer-icon {
+      transform: rotate(-12deg) scale(1.15);
+    }
+    .pub-cheer-btn.anim-pop .pub-cheer-icon {
+      animation: cheerCupTilt 0.4s ease;
+    }
+    .pub-cheer-info { display: flex; align-items: baseline; gap: 7px; }
+    .pub-cheer-title { font-size: 0.84rem; font-weight: 500; color: var(--text-primary); }
+    .pub-cheer-count {
+      font-size: 0.88rem; font-weight: 700;
+      font-variant-numeric: tabular-nums; color: var(--accent-orange);
+    }
+    .pub-cheer-sub {
+      font-size: 0.72rem; color: var(--text-muted);
+      transition: color var(--transition);
+    }
+    .pub-cheer-sub-num { font-weight: 600; color: var(--text-secondary); }
+
+    /* 滚动后浮现的右下角悬浮按钮 */
+    .pub-cheer-float {
+      position: fixed; right: 22px; bottom: 26px; z-index: 90;
+      transition: opacity 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .pub-cheer-float.hidden {
+      opacity: 0; pointer-events: none;
+      transform: translateY(22px) scale(0.85);
+    }
+    .pub-cheer-float-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 17px 9px 13px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: 999px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+      cursor: pointer; user-select: none;
+      transition: all 0.25s ease;
+    }
+    .pub-cheer-float-btn:hover {
+      border-color: var(--accent-orange);
+      box-shadow: 0 6px 24px rgba(224, 112, 80, 0.22);
+      transform: translateY(-2px);
+    }
+    .pub-cheer-float-btn:active, .pub-cheer-float-btn.anim-press {
+      transform: scale(0.92);
+    }
+    .pub-cheer-float-btn.anim-pop {
+      animation: cheerButtonPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .pub-cheer-float-icon { font-size: 1.15rem; line-height: 1; }
+    .pub-cheer-float-text { font-size: 0.82rem; font-weight: 500; color: var(--text-primary); }
+    .pub-cheer-float-count {
+      font-size: 0.84rem; font-weight: 700;
+      font-variant-numeric: tabular-nums; color: var(--accent-orange);
+    }
+
+    /* 漂浮鼓励语与连击动画 */
+    .pub-cheer-bubble {
+      position: fixed; z-index: 100; pointer-events: none;
+      font-size: 0.82rem; font-weight: 500; color: var(--text-primary);
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      padding: 6px 14px; border-radius: 999px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+      white-space: nowrap;
+      animation: cheerFloatUp 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    .pub-cheer-combo {
+      position: absolute; top: -9px; right: -6px;
+      background: var(--accent-orange); color: #fff;
+      font-size: 0.66rem; font-weight: 700;
+      padding: 1px 7px; border-radius: 999px;
+      box-shadow: 0 2px 8px rgba(224, 112, 80, 0.45);
+      pointer-events: none;
+      animation: cheerComboPop 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .pub-cheer-particle {
+      position: fixed; z-index: 101; pointer-events: none;
+      font-size: 1.05rem;
+      animation: cheerParticle 0.75s ease-out forwards;
+    }
+
+    @keyframes cheerButtonPop {
+      0% { transform: scale(0.92); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+    @keyframes cheerCupTilt {
+      0% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(-16deg) scale(1.22); }
+      50% { transform: rotate(14deg) scale(1.15); }
+      75% { transform: rotate(-6deg) scale(1.05); }
+      100% { transform: rotate(0deg) scale(1); }
+    }
+    @keyframes cheerFloatUp {
+      0% { opacity: 0; transform: translate3d(-50%, 0, 0) scale(0.6); }
+      18% { opacity: 1; transform: translate3d(-50%, -12px, 0) scale(1.05); }
+      75% { opacity: 0.95; transform: translate3d(-50%, -46px, 0) scale(1); }
+      100% { opacity: 0; transform: translate3d(-50%, -70px, 0) scale(0.9); }
+    }
+    @keyframes cheerComboPop {
+      0% { transform: scale(0.3); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes cheerParticle {
+      0% { opacity: 1; transform: translate(0, 0) scale(0.5); }
+      100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(1.2); }
+    }
 
     /* 分段导航 */
     .pub-tabs { display: flex; gap: 6px; margin-bottom: 26px; overflow-x: auto; scrollbar-width: none; }
@@ -427,6 +569,11 @@
       .pub-log { grid-template-columns: 38px 16px 1fr; }
       .pub-goal { padding: 12px 14px; }
       .pub-goal-meta { display: none; }   /* 窄屏让位给标题，箭头还在 */
+      .pub-intro { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .pub-cheer-widget { align-items: flex-start; width: 100%; margin-top: 4px; }
+      .pub-cheer-btn { width: 100%; justify-content: center; }
+      .pub-cheer-float { right: 14px; bottom: 18px; }
+      .pub-cheer-float-text { display: none; }
     }
   </style>
 </head>
@@ -440,7 +587,19 @@
 
   <main class="pub-main">
     <section class="pub-intro">
-      <h1 id="pub-title">学习日报</h1>
+      <div class="pub-intro-content">
+        <h1 id="pub-title">学习日报</h1>
+      </div>
+      <div class="pub-cheer-widget" id="pub-cheer-widget">
+        <button type="button" class="pub-cheer-btn" id="pub-cheer-btn" aria-label="为博主加个油">
+          <span class="pub-cheer-icon" aria-hidden="true">☕</span>
+          <span class="pub-cheer-info">
+            <span class="pub-cheer-title">递杯咖啡</span>
+            <span class="pub-cheer-count" id="pub-cheer-count">--</span>
+          </span>
+        </button>
+        <div class="pub-cheer-sub" id="pub-cheer-sub">全站累计收到 <span class="pub-cheer-sub-num" id="pub-cheer-sub-num">0</span> 次打气</div>
+      </div>
     </section>
 
     <nav class="pub-tabs" id="pub-tabs">
@@ -474,6 +633,15 @@
       <div id="board-body"></div>
     </section>
   </main>
+
+  <!-- 常驻右下角的快捷加油按钮（滚动后浮现） -->
+  <aside class="pub-cheer-float hidden" id="pub-cheer-float" aria-label="快捷加油打气">
+    <button type="button" class="pub-cheer-float-btn" id="pub-cheer-float-btn" title="为学习加个油！">
+      <span class="pub-cheer-float-icon">☕</span>
+      <span class="pub-cheer-float-text">为学习加油</span>
+      <span class="pub-cheer-float-count" id="pub-cheer-float-count">0</span>
+    </button>
+  </aside>
 
   <script src="js/public-site.js"></script>
 </body>

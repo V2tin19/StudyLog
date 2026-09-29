@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFA
 INSERT OR IGNORE INTO site_meta (key, value) VALUES ('site_title', '学习日报');
 INSERT OR IGNORE INTO site_meta (key, value) VALUES ('owner_name', '果冻');
 INSERT OR IGNORE INTO site_meta (key, value) VALUES ('announcement', '');
+INSERT OR IGNORE INTO site_meta (key, value) VALUES ('cheers_count', '0');
 
 -- ============================================================
 -- 留言（唯一一个访客能写的功能）

@@ -38,8 +38,8 @@ const Dashboard = {
             <div class="stat-label">收到留言</div>
           </div>
           <div class="card stat-card">
-            <div class="stat-value" id="dash-unreplied-count" style="color:var(--accent-orange);">-</div>
-            <div class="stat-label">待回复留言</div>
+            <div class="stat-value" id="dash-cheer-count" style="color:var(--accent-orange);">-</div>
+            <div class="stat-label">☕ 访客打气</div>
           </div>
         </div>
       </div>
@@ -128,7 +128,15 @@ const Dashboard = {
       }
 
       const comments = data.comments || [];
-      this.renderCommentsDashboard(section, comments);
+
+      let cheersCount = 0;
+      try {
+        const cRes = await fetch('/api/cheer');
+        const cData = await cRes.json().catch(() => ({}));
+        if (cData && typeof cData.count === 'number') cheersCount = cData.count;
+      } catch (_) {}
+
+      this.renderCommentsDashboard(section, comments, cheersCount);
     } catch (err) {
       this.updateTopCards('-', '-');
       section.innerHTML = `
@@ -140,25 +148,21 @@ const Dashboard = {
     }
   },
 
-  updateTopCards(total, unreplied) {
+  updateTopCards(total, cheers) {
     const elTotal = document.getElementById('dash-comment-count');
-    const elUnreplied = document.getElementById('dash-unreplied-count');
+    const elCheer = document.getElementById('dash-cheer-count');
     if (elTotal) elTotal.textContent = total;
-    if (elUnreplied) {
-      elUnreplied.textContent = unreplied;
-      elUnreplied.style.color = (typeof unreplied === 'number' && unreplied > 0)
-        ? 'var(--accent-orange)' : 'var(--accent-green)';
-    }
+    if (elCheer && cheers !== undefined) elCheer.textContent = cheers;
   },
 
-  renderCommentsDashboard(container, comments) {
+  renderCommentsDashboard(container, comments, cheersCount = 0) {
     const total = comments.length;
     const active = comments.filter(c => !c.hidden);
     const unreplied = active.filter(c => !c.reply);
     const replied = active.filter(c => !!c.reply);
     const replyRate = active.length > 0 ? Math.round((replied.length / active.length) * 100) : 100;
 
-    this.updateTopCards(total, unreplied.length);
+    this.updateTopCards(total, cheersCount);
 
     // 属地统计
     const locMap = {};
@@ -203,8 +207,8 @@ const Dashboard = {
             <div class="text-sm text-muted mt-8">${unreplied.length > 0 ? '待回复留言' : '全部已回复 ✓'}</div>
           </div>
           <div style="background:var(--bg-tertiary);border-radius:var(--radius-md);padding:12px;text-align:center;">
-            <div style="font-size:1.35rem;font-weight:700;color:var(--accent-blue);line-height:1.2;">${replyRate}%</div>
-            <div class="text-sm text-muted mt-8">回复率</div>
+            <div style="font-size:1.35rem;font-weight:700;color:var(--accent-orange);line-height:1.2;">${cheersCount}</div>
+            <div class="text-sm text-muted mt-8">☕ 访客打气</div>
           </div>
           <div style="background:var(--bg-tertiary);border-radius:var(--radius-md);padding:12px;text-align:center;">
             <div style="font-size:1.35rem;font-weight:700;color:var(--accent-pink);line-height:1.2;">${validLocCount || (locEntries.length ? 1 : 0)}</div>

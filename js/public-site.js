@@ -1320,11 +1320,246 @@
   }
 
   /* =========================================================
+     访客打气加油 / 递咖啡互动模块
+     ========================================================= */
+
+  var CHEER_API = '/api/cheer';
+  var CHEER_MY_KEY = 'studylog_my_cheers';
+
+  var cheerTotal = 0;
+  var cheerPendingAdd = 0;
+  var cheerSyncTimer = null;
+  var cheerCombo = 0;
+  var cheerComboTimer = null;
+  var cheerAudioCtx = null;
+
+  var CHEER_WORDS = [
+    '☕ 递上一杯热咖啡 +1',
+    '✨ 灵感加倍！',
+    '📖 专注力 +100%',
+    '🌱 日拱一卒，功不唐捐',
+    '💪 今天也超棒！',
+    '🔥 动力拉满！',
+    '🌟 闪闪发光的小进步',
+    '🌙 学累了记得伸个懒腰',
+    '🐟 敲一下木鱼，无Bug',
+    '🎉 步履不停，日有所得',
+    '☕ 再续一杯！能量满格',
+    '📚 沉浸在书香里',
+    '💡 豁然开朗的小瞬间'
+  ];
+
+  function getMyCheers() {
+    try { return parseInt(localStorage.getItem(CHEER_MY_KEY) || '0', 10) || 0; } catch (e) { return 0; }
+  }
+
+  function saveMyCheers(n) {
+    try { localStorage.setItem(CHEER_MY_KEY, String(n)); } catch (e) {}
+  }
+
+  /* 纯原生 Web Audio API 合成五声音阶舒缓风铃声（无任何外部音频文件依赖） */
+  function playCheerChime(pitchIdx) {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!cheerAudioCtx) cheerAudioCtx = new Ctx();
+      if (cheerAudioCtx.state === 'suspended') cheerAudioCtx.resume();
+
+      var now = cheerAudioCtx.currentTime;
+      var osc = cheerAudioCtx.createOscillator();
+      var gain = cheerAudioCtx.createGain();
+
+      var scale = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
+      var freq = scale[(pitchIdx || 0) % scale.length];
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.07, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.36);
+
+      osc.connect(gain);
+      gain.connect(cheerAudioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.38);
+    } catch (_) {}
+  }
+
+  function updateCheerUI() {
+    var countEl = document.getElementById('pub-cheer-count');
+    var floatCountEl = document.getElementById('pub-cheer-float-count');
+    var subNumEl = document.getElementById('pub-cheer-sub-num');
+    var subWrapEl = document.getElementById('pub-cheer-sub');
+
+    var fmt = cheerTotal.toLocaleString ? cheerTotal.toLocaleString('en-US') : cheerTotal;
+    if (countEl) countEl.textContent = fmt;
+    if (floatCountEl) floatCountEl.textContent = fmt;
+    if (subNumEl) subNumEl.textContent = fmt;
+
+    var my = getMyCheers();
+    if (subWrapEl && my > 0) {
+      subWrapEl.innerHTML = '全站已收 <span class="pub-cheer-sub-num">' + fmt + '</span> 杯 · 你送出了 <b>' + my + '</b> 杯';
+    }
+  }
+
+  function fetchCheerTotal() {
+    fetch(CHEER_API, { headers: { credentials: 'omit', accept: 'application/json' } })
+      .then(function (res) { return res.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        if (data && typeof data.count === 'number') {
+          cheerTotal = data.count;
+          updateCheerUI();
+        }
+      })
+      .catch(function () {});
+  }
+
+  function flushCheers() {
+    if (cheerPendingAdd <= 0) return;
+    var countToSend = cheerPendingAdd;
+    cheerPendingAdd = 0;
+
+    fetch(CHEER_API, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ count: countToSend })
+    })
+      .then(function (res) { return res.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        if (data && typeof data.count === 'number') {
+          cheerTotal = Math.max(cheerTotal, data.count);
+          updateCheerUI();
+        }
+      })
+      .catch(function () {});
+  }
+
+  function spawnBubble(btn, text) {
+    var rect = btn.getBoundingClientRect();
+    var bubble = document.createElement('div');
+    bubble.className = 'pub-cheer-bubble';
+    bubble.textContent = text;
+    bubble.style.left = (rect.left + rect.width / 2) + 'px';
+    bubble.style.top = (rect.top - 10) + 'px';
+    document.body.appendChild(bubble);
+
+    bubble.addEventListener('animationend', function () {
+      if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+    });
+  }
+
+  function spawnParticles(btn) {
+    var rect = btn.getBoundingClientRect();
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    var emojis = ['✨', '⭐', '☕', '💡', '🌟', '🎉'];
+
+    for (var i = 0; i < 8; i++) {
+      var p = document.createElement('div');
+      p.className = 'pub-cheer-particle';
+      p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      var angle = (i / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      var dist = 45 + Math.random() * 35;
+      p.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+      p.style.left = cx + 'px';
+      p.style.top = cy + 'px';
+      document.body.appendChild(p);
+
+      (function (el) {
+        el.addEventListener('animationend', function () {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        });
+      })(p);
+    }
+  }
+
+  function triggerCheer(e) {
+    var btn = e.currentTarget || (e.target && e.target.closest('button'));
+    if (!btn) return;
+
+    cheerTotal++;
+    cheerPendingAdd++;
+    saveMyCheers(getMyCheers() + 1);
+    updateCheerUI();
+
+    // 播放悦耳和弦音
+    cheerCombo++;
+    playCheerChime(cheerCombo);
+
+    clearTimeout(cheerComboTimer);
+    cheerComboTimer = setTimeout(function () {
+      cheerCombo = 0;
+      var existingCombo = document.querySelectorAll('.pub-cheer-combo');
+      Array.prototype.forEach.call(existingCombo, function (el) {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      });
+    }, 1200);
+
+    // 按钮弹跳反馈
+    btn.classList.remove('anim-pop');
+    void btn.offsetWidth; // 触发 reflow
+    btn.classList.add('anim-pop');
+
+    // 连击标志
+    if (cheerCombo >= 3) {
+      var badge = btn.querySelector('.pub-cheer-combo');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'pub-cheer-combo';
+        btn.appendChild(badge);
+      }
+      badge.textContent = 'x' + cheerCombo;
+    }
+
+    // 随机浮起暖心文字
+    var word = CHEER_WORDS[Math.floor(Math.random() * CHEER_WORDS.length)];
+    spawnBubble(btn, word);
+
+    // 达到 5 或其倍数触发粒子花火
+    if (cheerCombo > 0 && cheerCombo % 5 === 0) {
+      spawnParticles(btn);
+    }
+
+    // 防抖同步到后台
+    clearTimeout(cheerSyncTimer);
+    cheerSyncTimer = setTimeout(flushCheers, 800);
+  }
+
+  function initCheer() {
+    var btn = document.getElementById('pub-cheer-btn');
+    var floatWrap = document.getElementById('pub-cheer-float');
+    var floatBtn = document.getElementById('pub-cheer-float-btn');
+
+    if (btn) btn.addEventListener('click', triggerCheer);
+    if (floatBtn) floatBtn.addEventListener('click', triggerCheer);
+
+    // 滚动时优雅显示/隐藏浮动快捷按钮
+    if (floatWrap) {
+      window.addEventListener('scroll', function () {
+        var top = window.pageYOffset || document.documentElement.scrollTop || 0;
+        floatWrap.classList.toggle('hidden', top < 160);
+      }, { passive: true });
+    }
+
+    // 离开或切页面时立即将未上传的打气次数送出
+    window.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') flushCheers();
+    });
+
+    updateCheerUI();
+    fetchCheerTotal();
+  }
+
+  /* =========================================================
      启动
      ========================================================= */
 
   document.addEventListener('DOMContentLoaded', function () {
     initTheme();
+    initCheer();
 
     var tabs = document.getElementById('pub-tabs');
     if (tabs) {
