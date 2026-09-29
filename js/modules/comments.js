@@ -37,9 +37,12 @@ ALTER TABLE comments ADD COLUMN reply_at TEXT NOT NULL DEFAULT '';
 ALTER TABLE comments ADD COLUMN location TEXT NOT NULL DEFAULT '';`,
 
   filter: 'all',
+  page: 1,
+  PER_PAGE: 15,
   list: [],
   blocked: [],
   total: 0,
+  filteredTotal: 0,
   hiddenCount: 0,
   needTable: false,
   loading: false,
@@ -90,8 +93,16 @@ ALTER TABLE comments ADD COLUMN location TEXT NOT NULL DEFAULT '';`,
 
   setFilter(key) {
     this.filter = key;
+    this.page = 1;
     const tabs = document.getElementById('comment-tabs');
     if (tabs) tabs.innerHTML = this.tabsHtml();
+    this.refresh();
+  },
+
+  setPage(p) {
+    const totalPages = Math.max(1, Math.ceil(this.filteredTotal / this.PER_PAGE));
+    if (!(p >= 1) || p > totalPages || p === this.page) return;
+    this.page = p;
     this.refresh();
   },
 
@@ -108,13 +119,24 @@ ALTER TABLE comments ADD COLUMN location TEXT NOT NULL DEFAULT '';`,
     this.body('<div class="empty-state-text">正在读取…</div>');
 
     try {
-      const data = await this.request(this.API + '?limit=100&filter=' + encodeURIComponent(this.filter));
+      const offset = (this.page - 1) * this.PER_PAGE;
+      const data = await this.request(
+        this.API + `?limit=${this.PER_PAGE}&offset=${offset}&filter=` + encodeURIComponent(this.filter)
+      );
       this.needTable = !!data.needTable;
       this.list = data.comments || [];
       this.blocked = data.blocked || [];
       this.total = data.total || 0;
+      this.filteredTotal = typeof data.filteredTotal === 'number' ? data.filteredTotal : this.total;
       this.hiddenCount = data.hiddenCount || 0;
       this.error = '';
+
+      const totalPages = Math.max(1, Math.ceil(this.filteredTotal / this.PER_PAGE));
+      if (this.page > totalPages && totalPages >= 1) {
+        this.page = totalPages;
+        this.loading = false;
+        return this.refresh();
+      }
     } catch (err) {
       this.error = err.message || String(err);
       this.list = [];
@@ -153,19 +175,29 @@ ALTER TABLE comments ADD COLUMN location TEXT NOT NULL DEFAULT '';`,
       return;
     }
 
+    const totalPages = Math.max(1, Math.ceil(this.filteredTotal / this.PER_PAGE));
+    const paginationHtml = totalPages > 1 ? `
+      <div class="pagination">
+        <button class="btn btn-sm btn-secondary${this.page <= 1 ? ' disabled' : ''}" ${this.page <= 1 ? 'disabled' : ''} onclick="Comments.setPage(${this.page - 1})">上一页</button>
+        <span class="pagination-info">${this.page} / ${totalPages}</span>
+        <button class="btn btn-sm btn-secondary${this.page >= totalPages ? ' disabled' : ''}" ${this.page >= totalPages ? 'disabled' : ''} onclick="Comments.setPage(${this.page + 1})">下一页</button>
+      </div>
+    ` : '';
+
     this.body(`
       <div class="card mb-16">
         <div class="card-title"><span>${this.listTitle()}</span></div>
         ${this.list.map(c => this.rowHtml(c)).join('')}
+        ${paginationHtml}
       </div>
       ${this.blocked.length ? this.blockedHtml() : ''}
     `);
   },
 
   listTitle() {
-    const n = this.list.length;
+    const n = this.filteredTotal;
     const names = { all: '全部留言', diary: '日记下的留言', board: '留言簿', hidden: '已隐藏的留言' };
-    return `${names[this.filter] || '留言'} (${n})`;
+    return `${names[this.filter] || '留言'} (共 ${n} 条)`;
   },
 
   /* 一条留言 */

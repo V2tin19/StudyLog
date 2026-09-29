@@ -77,6 +77,15 @@ export async function onRequestGet({ env, request }) {
       .prepare('SELECT COUNT(*) AS total, SUM(hidden) AS hidden FROM comments')
       .first();
 
+    let filteredTotal = (stat && stat.total) || 0;
+    if (where.length) {
+      const f = await env.DB
+        .prepare(`SELECT COUNT(*) AS n FROM comments${whereSql}`)
+        .bind(...params)
+        .first();
+      filteredTotal = (f && f.n) || 0;
+    }
+
     /* 表可能建了 comments 但没建 blocklist（分开跑的），所以单独兜底 */
     let blocked = [];
     try {
@@ -92,6 +101,7 @@ export async function onRequestGet({ env, request }) {
         comments: rows.slice(0, limit).map(toAdminComment),
         hasMore,
         total: (stat && stat.total) || 0,
+        filteredTotal,
         hiddenCount: (stat && stat.hidden) || 0,
         blocked
       },
@@ -100,7 +110,7 @@ export async function onRequestGet({ env, request }) {
     );
   } catch (err) {
     if (isMissingTable(err)) {
-      return json({ ok: true, needTable: true, comments: [], hasMore: false, total: 0, hiddenCount: 0, blocked: [] }, 200, NO_STORE);
+      return json({ ok: true, needTable: true, comments: [], hasMore: false, total: 0, filteredTotal: 0, hiddenCount: 0, blocked: [] }, 200, NO_STORE);
     }
     return json({ error: '读取留言失败：' + err.message }, 500, NO_STORE);
   }

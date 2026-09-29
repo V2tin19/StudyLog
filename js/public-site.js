@@ -839,14 +839,16 @@
 
   var COMMENT_API = '/api/comments';
   var NAME_KEY = 'studylog_comment_name';
-  var BOARD_PAGE = 30;
+  var BOARD_PAGE = 15;
 
   var commentCounts = {};     /* 日期 → 条数。公开页启动时一次查完 */
   var commentCache = {};      /* 日期 → 留言数组。点开过一次就不再请求 */
   var commentBlocked = false; /* 留言表还没建：整块隐藏，别给访客看坏掉的东西 */
 
   /* 留言簿分页状态 */
-  var boardOffset = 0;
+  var boardPage = 1;
+  var boardTotalPages = 1;
+  var boardTotal = 0;
   var boardLoading = false;
   var boardInited = false;
 
@@ -1051,8 +1053,21 @@
       if (!list) return;
       var empty = list.querySelector('.pub-state');
       if (empty) empty.parentNode.removeChild(empty);
-      /* 留言簿是倒序（新的在最上面） */
-      list.insertAdjacentHTML('afterbegin', commentHtml(created, 'pub-board-item'));
+
+      /* 如果在第一页，直接插入到最顶部，并截断超出一页的部分保持 15 条 */
+      if (boardPage === 1) {
+        list.insertAdjacentHTML('afterbegin', commentHtml(created, 'pub-board-item'));
+        var boardItems = list.querySelectorAll('.pub-board-item');
+        if (boardItems.length > BOARD_PAGE) {
+          var last = boardItems[boardItems.length - 1];
+          if (last && last.parentNode) last.parentNode.removeChild(last);
+        }
+      } else {
+        setBoardPage(1);
+      }
+      boardTotal += 1;
+      boardTotalPages = Math.max(1, Math.ceil(boardTotal / BOARD_PAGE));
+      renderBoardPager();
       return;
     }
 
@@ -1120,16 +1135,39 @@
         formHtml('board', '') +
       '</div>' +
       '<div id="board-list" class="pub-board-list"><div class="pub-state">正在读取…</div></div>' +
-      '<div class="pub-more-wrap hidden" id="board-more-wrap">' +
-        '<button class="pub-more" id="board-more">加载更早的留言</button>' +
-      '</div>';
+      '<div id="board-pagination"></div>';
 
     boardInited = true;
-
-    var more = document.getElementById('board-more');
-    if (more) more.addEventListener('click', function () { loadBoard(false); });
-
     loadBoard(true);
+  }
+
+  function renderBoardPager() {
+    var box = document.getElementById('board-pagination');
+    if (!box) return;
+    if (boardTotalPages <= 1) { box.innerHTML = ''; return; }
+
+    box.innerHTML =
+      '<div class="pub-pager">' +
+        '<button class="pub-page-btn" data-board-goto="' + (boardPage - 1) + '"' +
+          (boardPage <= 1 ? ' disabled' : '') + '>上一页</button>' +
+        '<span class="pub-page-info">' + boardPage + ' / ' + boardTotalPages + '</span>' +
+        '<button class="pub-page-btn" data-board-goto="' + (boardPage + 1) + '"' +
+          (boardPage >= boardTotalPages ? ' disabled' : '') + '>下一页</button>' +
+      '</div>';
+  }
+
+  function setBoardPage(p) {
+    if (!(p >= 1) || p > boardTotalPages || p === boardPage) return;
+    boardPage = p;
+    var list = document.getElementById('board-list');
+    if (list) list.innerHTML = '<div class="pub-state">正在读取…</div>';
+    var boardTop = document.querySelector('.pub-board-top');
+    if (boardTop && boardTop.scrollIntoView) {
+      boardTop.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    loadBoard(false);
   }
 
   function loadBoard(reset) {
@@ -1137,13 +1175,12 @@
     var list = document.getElementById('board-list');
     if (!list) return;
 
-    if (reset) boardOffset = 0;
+    if (reset) boardPage = 1;
     boardLoading = true;
 
-    var btn = document.getElementById('board-more');
-    if (btn && !reset) { btn.disabled = true; btn.textContent = '加载中…'; }
+    var offset = (boardPage - 1) * BOARD_PAGE;
 
-    fetch(COMMENT_API + '?scope=board&limit=' + BOARD_PAGE + '&offset=' + boardOffset, { headers: { accept: 'application/json' } })
+    fetch(COMMENT_API + '?scope=board&limit=' + BOARD_PAGE + '&offset=' + offset, { headers: { accept: 'application/json' } })
       .then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (data) {
           if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
@@ -1153,32 +1190,32 @@
       .then(function (data) {
         if (data.needTable) {
           list.innerHTML = stateHtml('留言功能还没启用', '站主还没把留言表建起来');
+          var pag = document.getElementById('board-pagination');
+          if (pag) pag.innerHTML = '';
           return;
         }
 
         var items = data.comments || [];
-        if (reset) list.innerHTML = '';
+        var total = typeof data.total === 'number' && data.total >= 0 ? data.total : (offset + items.length + (data.hasMore ? 1 : 0));
+        boardTotal = total;
+        boardTotalPages = Math.max(1, Math.ceil(total / BOARD_PAGE));
+        if (boardPage > boardTotalPages) boardPage = boardTotalPages;
 
-        if (!items.length && boardOffset === 0) {
+        if (!items.length) {
           list.innerHTML = stateHtml('还没有留言', '来说第一句吧');
-        } else if (items.length) {
-          /* 留言簿倒序：第一页是最新的，往下翻是更早的，所以新数据接在末尾 */
-          list.insertAdjacentHTML('beforeend', items.map(function (c) {
+        } else {
+          list.innerHTML = items.map(function (c) {
             return commentHtml(c, 'pub-board-item');
-          }).join(''));
+          }).join('');
         }
 
-        boardOffset += items.length;
-
-        var wrap = document.getElementById('board-more-wrap');
-        if (wrap) wrap.classList.toggle('hidden', !data.hasMore);
+        renderBoardPager();
       })
       .catch(function (err) {
-        if (boardOffset === 0) list.innerHTML = stateHtml('没能读到留言', err.message || String(err));
+        list.innerHTML = stateHtml('没能读到留言', err.message || String(err));
       })
       .finally(function () {
         boardLoading = false;
-        if (btn) { btn.disabled = false; btn.textContent = '加载更早的留言'; }
       });
   }
 
@@ -1334,6 +1371,30 @@
       if (!box) return;
       box.addEventListener('click', onCommentClick);
       box.addEventListener('submit', onSubmitComment);
+    });
+
+    /* 留言簿翻页事件委托 */
+    var boardBody = document.getElementById('board-body');
+    if (boardBody) {
+      boardBody.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('[data-board-goto]') : null;
+        if (!btn || btn.disabled) return;
+        setBoardPage(parseInt(btn.getAttribute('data-board-goto'), 10));
+      });
+    }
+
+    /* 访客昵称自动保存与多处输入实时同步：
+       只要在任一昵称框输入或修改，立刻保存至 localStorage，
+       并同步页面上其他输入框（日记留言、留言簿、书目/目标推荐），
+       下次访问或关浏览器重开时都能自动带出，无需手动反复填写 */
+    document.addEventListener('input', function (e) {
+      if (e.target && e.target.classList && e.target.classList.contains('pub-input-name')) {
+        var val = (e.target.value || '').trim();
+        rememberName(val);
+        Array.prototype.forEach.call(document.querySelectorAll('.pub-input-name'), function (el) {
+          if (el !== e.target && el.value !== e.target.value) el.value = e.target.value;
+        });
+      }
     });
 
     /* 留言数单独拉：条数是后到的，先渲染日记再补数字，别为了一行数字让整页等着 */

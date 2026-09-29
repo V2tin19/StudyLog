@@ -27,7 +27,7 @@ import {
 const MAX_NAME = 24;
 const MAX_CONTENT = 500;
 const DIARY_LIMIT = 50;          /* 日记下面一屏放这么多够了 */
-const BOARD_DEFAULT = 30;
+const BOARD_DEFAULT = 15;
 const BOARD_MAX = 100;
 const RATE_WINDOW_MS = 60 * 1000;
 const RATE_MAX = 3;
@@ -97,7 +97,14 @@ export async function onRequestGet({ env, request }) {
   const order = scope === 'board' ? 'DESC' : 'ASC';
 
   try {
-    /* 多取一条来判断「还有没有更早的」，省掉一次 COUNT 查询 */
+    let total = 0;
+    const countRow = await env.DB
+      .prepare("SELECT COUNT(*) AS n FROM comments WHERE scope = ? AND target = ? AND hidden = 0")
+      .bind(scope, target)
+      .first();
+    if (countRow && typeof countRow.n === 'number') total = countRow.n;
+
+    /* 多取一条来判断「还有没有更早的」，兼容老调用方 */
     let results;
     try {
       const q = await env.DB
@@ -129,9 +136,9 @@ export async function onRequestGet({ env, request }) {
     const rows = results || [];
     const hasMore = rows.length > limit;
 
-    return json({ ok: true, comments: rows.slice(0, limit).map(toComment), hasMore, total: 0 }, 200, NO_STORE);
+    return json({ ok: true, comments: rows.slice(0, limit).map(toComment), hasMore, total }, 200, NO_STORE);
   } catch (err) {
-    if (isMissingTable(err)) return json({ ok: true, comments: [], hasMore: false, needTable: true }, 200, NO_STORE);
+    if (isMissingTable(err)) return json({ ok: true, comments: [], hasMore: false, total: 0, needTable: true }, 200, NO_STORE);
     return json({ error: '读取留言失败：' + err.message }, 500, NO_STORE);
   }
 }
