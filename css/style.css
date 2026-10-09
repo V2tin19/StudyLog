@@ -1672,6 +1672,16 @@ tr:hover td { background: var(--bg-hover); }
   background: rgba(123, 164, 199, 0.12);
 }
 
+.seat-badge.online {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+  background: rgba(140, 184, 160, 0.12);
+}
+
+.focus-seat-card.is-online {
+  border-color: var(--accent-green);
+}
+
 .focus-seat-body {
   display: flex;
   flex-direction: column;

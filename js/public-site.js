@@ -1355,18 +1355,7 @@
         '<div class="pub-section-title">自习室</div>' +
         '<div id="pub-focus-widget"></div>' +
       '</div>' +
-      '<div class="pub-section" style="margin-top:28px;">' +
-        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
-          '<div class="pub-section-title" style="margin-bottom:0;">专属席位</div>' +
-          '<div style="display:flex; gap:8px;">' +
-            '<button type="button" class="pub-page-btn" id="pub-seat-login-btn" style="padding:4px 11px; font-size:0.75rem;">输入令牌</button>' +
-            '<button type="button" class="pub-page-btn" id="pub-seats-refresh-btn" style="padding:4px 11px; font-size:0.75rem;">⟳ 刷新</button>' +
-          '</div>' +
-        '</div>' +
-        '<div class="focus-seats-grid" id="pub-focus-seats-grid">' +
-          '<div class="focus-buddy-loading">正在读取席位…</div>' +
-        '</div>' +
-      '</div>' +
+      '<div id="pub-seats-section"></div>' +
       '<div class="pub-section" style="margin-top:28px;">' +
         '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
           '<div class="pub-section-title" style="margin-bottom:0;">在线伴读</div>' +
@@ -1383,13 +1372,12 @@
     loadPublicBuddies();
 
     var refBuddies = document.getElementById('pub-focus-refresh');
-    if (refBuddies) refBuddies.onclick = loadPublicBuddies;
-
-    var refSeats = document.getElementById('pub-seats-refresh-btn');
-    if (refSeats) refSeats.onclick = loadPublicSeats;
-
-    var seatLoginBtn = document.getElementById('pub-seat-login-btn');
-    if (seatLoginBtn) seatLoginBtn.onclick = handleSeatTokenLogin;
+    if (refBuddies) {
+      refBuddies.onclick = function () {
+        loadPublicBuddies();
+        loadPublicSeats();
+      };
+    }
   }
 
   function getPubFocusActive() {
@@ -1717,28 +1705,68 @@
   }
 
   function loadPublicSeats() {
-    var container = document.getElementById('pub-focus-seats-grid');
-    if (!container) return;
+    var sectionEl = document.getElementById('pub-seats-section');
+    if (!sectionEl) return;
 
     var myToken = getSeatToken();
+    var mySeatId = getSeatId();
     var url = '/api/focus-seats' + (myToken ? ('?token=' + encodeURIComponent(myToken)) : '');
 
-    fetch(url)
+    var presencePromise = fetch('/api/focus-presence')
       .then(function (r) { return r.json(); })
-      .then(function (res) {
+      .catch(function () { return { active: [] }; });
+
+    var seatsPromise = fetch(url)
+      .then(function (r) { return r.json(); })
+      .catch(function () { return null; });
+
+    Promise.all([seatsPromise, presencePromise])
+      .then(function (results) {
+        var res = results[0];
+        var pData = results[1] || {};
+        var activeBuddies = (pData && Array.isArray(pData.active)) ? pData.active : [];
+
         if (!res || !res.ok || !Array.isArray(res.seats)) {
-          container.innerHTML = '<div class="focus-buddy-empty">席位状态暂未就绪</div>';
+          sectionEl.innerHTML = '';
           return;
         }
 
         var seats = res.seats;
-        var mySeatId = getSeatId();
+        var claimedSeats = seats.filter(function (s) {
+          return s.claimed || s.isOwner || (myToken && s.id === mySeatId);
+        });
+        var freeSeats = seats.filter(function (s) {
+          return !s.claimed && !s.isOwner && !(myToken && s.id === mySeatId);
+        });
 
-        container.innerHTML = seats.map(function (s) {
+        // 1. 无人认领席位时：整块收起折叠（pub-fold），不摆任何空席位
+        if (claimedSeats.length === 0) {
+          sectionEl.innerHTML =
+            '<details class="pub-fold" id="pub-seats-fold" style="margin-top:24px;">' +
+              '<summary>专属席位 <span style="font-size:0.72rem; color:var(--text-muted); font-weight:normal; margin-left:6px;">(' + freeSeats.length + ' 个空闲)</span></summary>' +
+              '<div class="pub-fold-body">' +
+                '<div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">' +
+                  '暂无占用席位。朋友可认领专属席位留存专注时长与心得。' +
+                '</div>' +
+                '<div style="display:flex; gap:8px;">' +
+                  '<button type="button" class="focus-seat-btn btn-claim" data-action="claim-next">+ 认领空闲席位</button>' +
+                  '<button type="button" class="focus-seat-btn" data-action="token-login">输入令牌</button>' +
+                '</div>' +
+              '</div>' +
+            '</details>';
+
+          bindFoldSeatEvents(sectionEl, freeSeats);
+          return;
+        }
+
+        // 2. 有人认领席位时：摆出已占用的席位卡片（绝不展示无人的空席位）
+        var cardsHtml = claimedSeats.map(function (s) {
           var isMine = s.isOwner || (myToken && s.id === mySeatId);
-          var badgeClass = isMine ? 'mine' : (s.claimed ? 'taken' : 'free');
-          var badgeText = isMine ? '当前绑定' : (s.claimed ? '已认领' : '空闲');
-          var holderText = s.claimed ? esc(s.holder || '已认领') : '虚位以待';
+          var isOnline = activeBuddies.some(function (b) { return b && b.name && b.name === s.holder; });
+
+          var badgeClass = isOnline ? 'online' : (isMine ? 'mine' : 'taken');
+          var badgeText = isOnline ? '正在专注' : (isMine ? '当前绑定' : '已认领');
+
           var stats = s.stats || { totalMinutes: 0, totalSessions: 0 };
           var totalMin = stats.totalMinutes || 0;
           var totalSessions = stats.totalSessions || 0;
@@ -1749,9 +1777,6 @@
               '<button type="button" class="focus-seat-btn" data-seat-token-show="' + s.id + '">令牌</button>' +
               '<button type="button" class="focus-seat-btn" data-seat-transfer="' + s.id + '">转交</button>' +
               '<button type="button" class="focus-seat-btn btn-danger" data-seat-release="' + s.id + '">释放</button>';
-          } else if (!s.claimed) {
-            actionsHtml =
-              '<button type="button" class="focus-seat-btn btn-claim" data-seat-claim="' + s.id + '">认领席位</button>';
           }
 
           var recordsCount = (s.records && s.records.length) ? s.records.length : 0;
@@ -1776,13 +1801,13 @@
               '</div>';
           }
 
-          return '<div class="focus-seat-card' + (isMine ? ' is-mine' : '') + '" data-seat-card-id="' + s.id + '">' +
+          return '<div class="focus-seat-card' + (isMine ? ' is-mine' : '') + (isOnline ? ' is-online' : '') + '" data-seat-card-id="' + s.id + '">' +
             '<div class="focus-seat-head">' +
               '<span class="focus-seat-title">' + esc(s.name) + '</span>' +
               '<span class="seat-badge ' + badgeClass + '">' + badgeText + '</span>' +
             '</div>' +
             '<div class="focus-seat-body">' +
-              '<div class="focus-seat-holder' + (s.claimed ? '' : ' empty') + '">' + holderText + '</div>' +
+              '<div class="focus-seat-holder">' + esc(s.holder || '已认领') + '</div>' +
               '<div class="focus-seat-stats">累计 ' + totalMin + ' 分钟 · ' + totalSessions + ' 次专注</div>' +
             '</div>' +
             (actionsHtml ? ('<div class="focus-seat-actions">' + actionsHtml + '</div>') : '') +
@@ -1790,45 +1815,98 @@
           '</div>';
         }).join('');
 
-        bindSeatActions(container, seats);
+        var claimNextBtn = (freeSeats.length > 0)
+          ? ('<button type="button" class="pub-page-btn" data-action="claim-next" style="padding:4px 10px; font-size:0.75rem;">+ 认领席位 (剩 ' + freeSeats.length + ' 个)</button>')
+          : '';
+
+        sectionEl.innerHTML =
+          '<div class="pub-section" style="margin-top:28px;">' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">' +
+              '<div class="pub-section-title" style="margin-bottom:0;">专属席位</div>' +
+              '<div style="display:flex; gap:8px;">' +
+                claimNextBtn +
+                '<button type="button" class="pub-page-btn" data-action="token-login" style="padding:4px 10px; font-size:0.75rem;">输入令牌</button>' +
+                '<button type="button" class="pub-page-btn" id="pub-seats-refresh-btn" style="padding:4px 10px; font-size:0.75rem;">⟳ 刷新</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="focus-seats-grid">' +
+              cardsHtml +
+            '</div>' +
+          '</div>';
+
+        bindSeatActions(sectionEl, seats, freeSeats);
+
+        var refBtn = document.getElementById('pub-seats-refresh-btn');
+        if (refBtn) refBtn.onclick = loadPublicSeats;
       })
       .catch(function () {
-        container.innerHTML = '<div class="focus-buddy-empty">席位状态暂未就绪</div>';
+        sectionEl.innerHTML = '';
       });
   }
 
-  function bindSeatActions(container, seats) {
+  function bindFoldSeatEvents(container, freeSeats) {
+    var claimBtn = container.querySelector('[data-action="claim-next"]');
+    if (claimBtn) {
+      claimBtn.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        claimFirstAvailableSeat(freeSeats);
+      };
+    }
+    var loginBtn = container.querySelector('[data-action="token-login"]');
+    if (loginBtn) {
+      loginBtn.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleSeatTokenLogin();
+      };
+    }
+  }
+
+  function claimFirstAvailableSeat(freeSeats) {
+    if (!freeSeats || freeSeats.length === 0) {
+      alert('所有专属席位均已被认领。');
+      return;
+    }
+    var targetSeat = freeSeats[0];
+    var def = savedName() || '';
+    var holder = prompt('认领席位 #' + targetSeat.id + '，请输入你的称呼或代号：', def);
+    if (holder === null) return;
+    holder = (holder || '').trim();
+    if (!holder) holder = randomKey7();
+
+    fetch('/api/focus-seats', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'claim', seatId: targetSeat.id, holder: holder })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          setSeatBinding(data.token, targetSeat.id, data.holder);
+          rememberName(data.holder);
+          alert('席位 #' + targetSeat.id + ' 认领成功！\n你的专属 7 位令牌为：' + data.token + '\n\n可凭此令牌在其他设备登入或转交。请妥善保存。');
+          initPublicFocusWidget();
+          loadPublicSeats();
+        } else {
+          alert(data.error || '认领失败');
+        }
+      })
+      .catch(function (err) { alert('请求失败：' + err.message); });
+  }
+
+  function bindSeatActions(container, seats, freeSeats) {
     container.onclick = function (e) {
       var target = e.target;
       if (!target) return;
 
-      var claimId = target.getAttribute('data-seat-claim');
-      if (claimId) {
-        var sid = parseInt(claimId, 10);
-        var def = savedName() || '';
-        var holder = prompt('认领席位 #' + sid + '，请输入你的称呼或代号：', def);
-        if (holder === null) return;
-        holder = (holder || '').trim();
-        if (!holder) holder = randomKey7();
-
-        fetch('/api/focus-seats', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ action: 'claim', seatId: sid, holder: holder })
-        })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (data.ok) {
-              setSeatBinding(data.token, sid, data.holder);
-              rememberName(data.holder);
-              alert('席位 #' + sid + ' 认领成功！\n你的专属 7 位令牌为：' + data.token + '\n\n可凭此令牌在其他设备登入或转交。请妥善保存。');
-              initPublicFocusWidget();
-              loadPublicSeats();
-            } else {
-              alert(data.error || '认领失败');
-            }
-          })
-          .catch(function (err) { alert('请求失败：' + err.message); });
+      var action = target.getAttribute('data-action');
+      if (action === 'claim-next') {
+        claimFirstAvailableSeat(freeSeats);
+        return;
+      }
+      if (action === 'token-login') {
+        handleSeatTokenLogin();
         return;
       }
 
