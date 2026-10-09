@@ -86,10 +86,22 @@ export async function onRequestPost({ env, request }) {
     if (list.length > 60) list = list.slice(-60);
 
     const payload = JSON.stringify(list);
-    await env.DB.prepare(
-      `INSERT INTO site_meta (key, value) VALUES ('focus_presence_list', ?)
-       ON CONFLICT(key) DO UPDATE SET value = ?`
-    ).bind(payload, payload).run();
+    try {
+      await env.DB.prepare(
+        `INSERT INTO site_meta (key, value) VALUES ('focus_presence_list', ?)
+         ON CONFLICT(key) DO UPDATE SET value = ?`
+      ).bind(payload, payload).run();
+    } catch (dbErr) {
+      try {
+        await env.DB.prepare("CREATE TABLE IF NOT EXISTS site_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')").run();
+        await env.DB.prepare(
+          `INSERT INTO site_meta (key, value) VALUES ('focus_presence_list', ?)
+           ON CONFLICT(key) DO UPDATE SET value = ?`
+        ).bind(payload, payload).run();
+      } catch (e2) {
+        // 忽略异常，不阻断前端自习
+      }
+    }
 
     return json({ ok: true, active: list, count: list.length }, 200, NO_STORE);
   } catch (err) {

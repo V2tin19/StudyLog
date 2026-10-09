@@ -1550,7 +1550,7 @@
       })
       .catch(function (err) {
         var msg = err.message || String(err);
-        ['study-body', 'focus-body', 'schedule-body', 'goals-body'].forEach(function (id) {
+        ['study-body', 'schedule-body', 'goals-body'].forEach(function (id) {
           var el = document.getElementById(id);
           if (el) el.innerHTML = stateHtml('没能读到数据', msg);
         });
@@ -1578,6 +1578,10 @@
       } else {
         renderBoard();
       }
+    } else if (tab === 'focus') {
+      /* 自习室有自己的在线时钟与伴读墙，直接渲染，不强依赖 doc 接口 */
+      renderPublicFocus(docs ? docs.focus : null);
+      if (!docLoaded && !docLoading) loadDocs();
     } else if (tab !== 'diary') {
       /* 命中缓存也要重画 —— 面板是切一次画一次，
          少了 paintDoc 这条分支，第二个被点开的板块会是空白。 */

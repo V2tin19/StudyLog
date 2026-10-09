@@ -32,7 +32,15 @@ export async function onRequestGet({ env, request }) {
     const r = await env.DB.prepare('SELECT key, payload, updated_at FROM doc').all();
     results = r.results || [];
   } catch (err) {
-    return json({ error: '读取失败：' + err.message }, 500, NO_STORE);
+    try {
+      await env.DB.prepare(
+        "CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')"
+      ).run();
+      const r = await env.DB.prepare('SELECT key, payload, updated_at FROM doc').all();
+      results = r.results || [];
+    } catch (e2) {
+      results = [];
+    }
   }
 
   const docs = {};
@@ -101,7 +109,14 @@ export async function onRequestPost({ env, request }) {
   try {
     if (statements.length) await env.DB.batch(statements);
   } catch (err) {
-    return json({ error: '写入失败：' + err.message }, 500, NO_STORE);
+    try {
+      await env.DB.prepare(
+        "CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')"
+      ).run();
+      if (statements.length) await env.DB.batch(statements);
+    } catch (e2) {
+      return json({ error: '写入失败：' + (e2.message || err.message) }, 500, NO_STORE);
+    }
   }
 
   const saved = statements.length;

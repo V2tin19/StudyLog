@@ -18,12 +18,17 @@ export async function onRequestGet({ env }) {
     const r = await env.DB.prepare('SELECT key, payload, updated_at FROM doc').all();
     results = r.results || [];
   } catch (err) {
-    /* 表还没建的情况：给一句人能看懂的话，别抛 500 让前端猜 */
-    return json(
-      { error: '数据表 doc 还没建。请到 Cloudflare D1 控制台执行 schema.sql 里新增的那条 CREATE TABLE 语句' },
-      500,
-      { 'cache-control': 'no-store' }
-    );
+    /* 表还没建的情况：自动无感建表，免去手动进 D1 控制台执行 SQL */
+    try {
+      await env.DB.prepare(
+        "CREATE TABLE IF NOT EXISTS doc (key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')"
+      ).run();
+      const r = await env.DB.prepare('SELECT key, payload, updated_at FROM doc').all();
+      results = r.results || [];
+    } catch (e2) {
+      /* 兜底返回空对象，绝对不要抛 500 破坏前端页面 */
+      return json({ ok: true, docs: {} }, 200, { 'cache-control': 'no-store' });
+    }
   }
 
   const docs = {};
