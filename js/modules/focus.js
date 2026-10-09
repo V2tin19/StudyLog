@@ -49,12 +49,21 @@ const Focus = {
     Store.remove(this.ACTIVE_KEY);
   },
 
+  _randomKey7() {
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    let res = '';
+    for (let i = 0; i < 7; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return res;
+  },
+
   getNickname() {
-    return Store.get(this.NICKNAME_KEY) || localStorage.getItem('studylog_comment_name') || '馆主';
+    return Store.get(this.NICKNAME_KEY) || localStorage.getItem('studylog_comment_name') || '';
   },
 
   setNickname(name) {
-    const n = (name || '').trim().slice(0, 20) || '馆主';
+    const n = (name || '').trim().slice(0, 20);
     Store.set(this.NICKNAME_KEY, n);
     return n;
   },
@@ -97,12 +106,17 @@ const Focus = {
   start(mode, targetMinutes, subject) {
     const now = Date.now();
     const id = Utils.uid();
+    let nick = (this.getNickname() || '').trim();
+    if (!nick) {
+      nick = this._randomKey7();
+      this.setNickname(nick);
+    }
     const active = {
       id: id,
       mode: mode === 'countup' ? 'countup' : 'countdown',
       targetMinutes: parseInt(targetMinutes, 10) || 25,
       startTime: now,
-      subject: (subject || '自习专注').trim().slice(0, 30),
+      subject: (subject || '自习').trim().slice(0, 30),
       createdAt: new Date().toISOString()
     };
 
@@ -267,7 +281,7 @@ const Focus = {
     if (list.length === 0) {
       listEl.innerHTML = `
         <div class="focus-buddy-empty">
-          <span>暂无在线书友</span>
+          <span>暂无在线伴读</span>
         </div>
       `;
       return;
@@ -276,14 +290,15 @@ const Focus = {
     const now = Date.now();
     listEl.innerHTML = list.map(b => {
       const mins = Math.max(1, Math.floor((now - (b.startTime || now)) / 60000));
-      const initial = (b.name || '书').charAt(0).toUpperCase();
+      const displayName = b.name || '—';
+      const initial = displayName.charAt(0).toUpperCase();
       const isMe = this.getActive() && this.getActive().id === b.id;
       return `
         <div class="focus-buddy-card ${isMe ? 'is-me' : ''}">
           <div class="focus-buddy-av">${Utils.esc(initial)}</div>
           <div class="focus-buddy-info">
             <div class="focus-buddy-top">
-              <span class="focus-buddy-name">${Utils.esc(b.name || '书友')}</span>
+              <span class="focus-buddy-name">${Utils.esc(displayName)}</span>
               ${isMe ? '<span class="focus-badge-me">我</span>' : ''}
               <span class="focus-buddy-time">已专注 ${mins}m</span>
             </div>
@@ -380,14 +395,14 @@ const Focus = {
           ${clockSectionHtml}
         </section>
 
-        <!-- 在线伴读墙（书友在线） -->
+        <!-- 在线伴读 -->
         <section class="focus-buddies-section">
           <div class="focus-sec-head">
             <div class="focus-sec-title">
-              <span>伴读墙</span>
+              <span>伴读</span>
               <span class="focus-badge-count"><span id="focus-buddies-count">${this._activeBuddies.length}</span> 人在线</span>
             </div>
-            <button class="focus-refresh-btn" id="focus-buddies-refresh" title="刷新在线书友">⟳ 刷新</button>
+            <button class="focus-refresh-btn" id="focus-buddies-refresh" title="刷新在线状态">⟳ 刷新</button>
           </div>
           <div class="focus-buddies-list" id="focus-buddies-list">
             <div class="focus-buddy-loading">正在载入伴读状态…</div>
@@ -766,7 +781,7 @@ const Focus = {
       }
     });
 
-    // 8. 刷新在线书友
+    // 8. 刷新在线伴读
     document.getElementById('focus-buddies-refresh')?.addEventListener('click', () => {
       this.fetchBuddies();
     });

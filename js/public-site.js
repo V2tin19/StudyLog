@@ -14,7 +14,7 @@
 
   var DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   var WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];   /* 展示顺序按周一开头，跟中文习惯一致 */
-  var TABS = ['diary', 'study', 'focus', 'schedule', 'goals', 'board'];
+  var TABS = ['focus', 'diary', 'study', 'schedule', 'goals', 'board'];
 
   /* 心情标签 → 显示名 + 颜色（颜色值取自 style.css 的 accent 变量） */
   var MOODS = {
@@ -45,7 +45,7 @@
   var docs = null;
   var docLoaded = false;
   var docLoading = false;
-  var activeTab = 'diary';
+  var activeTab = 'focus';
 
   /* ---------- 小工具 ---------- */
 
@@ -1220,37 +1220,119 @@
   }
 
   /* =========================================================
-     公开自习室与伴读墙
+     公开自习室、专属席位与伴读
      ========================================================= */
   var PUB_FOCUS_ACTIVE_KEY = 'studylog_pub_focus_active';
+  var PUB_FOCUS_HISTORY_KEY = 'studylog_pub_focus_history';
+  var SEAT_TOKEN_KEY = 'studylog_seat_token';
+  var SEAT_ID_KEY = 'studylog_seat_id';
+  var SEAT_HOLDER_KEY = 'studylog_seat_holder';
   var pubFocusTimer = null;
   var pubPresenceTimer = null;
+
+  function randomKey7() {
+    var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    var res = '';
+    for (var i = 0; i < 7; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return res;
+  }
+
+  function getSeatToken() {
+    try { return localStorage.getItem(SEAT_TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function getSeatId() {
+    try { return parseInt(localStorage.getItem(SEAT_ID_KEY), 10) || null; } catch (e) { return null; }
+  }
+
+  function getSeatHolderName() {
+    try { return localStorage.getItem(SEAT_HOLDER_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function setSeatBinding(token, id, holder) {
+    try {
+      if (token && id) {
+        localStorage.setItem(SEAT_TOKEN_KEY, token);
+        localStorage.setItem(SEAT_ID_KEY, String(id));
+        if (holder) localStorage.setItem(SEAT_HOLDER_KEY, String(holder));
+      } else {
+        localStorage.removeItem(SEAT_TOKEN_KEY);
+        localStorage.removeItem(SEAT_ID_KEY);
+        localStorage.removeItem(SEAT_HOLDER_KEY);
+      }
+    } catch (e) {}
+  }
+
+  function getLocalFocusRecords() {
+    try {
+      var raw = localStorage.getItem(PUB_FOCUS_HISTORY_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function addLocalFocusRecord(rec) {
+    try {
+      var arr = getLocalFocusRecords();
+      arr.unshift(rec);
+      if (arr.length > 50) arr = arr.slice(0, 50);
+      localStorage.setItem(PUB_FOCUS_HISTORY_KEY, JSON.stringify(arr));
+    } catch (e) {}
+  }
+
+  function playFocusChime() {
+    try {
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      var ctx = new AudioCtx();
+      var freqs = [587.33, 880];
+      var now = ctx.currentTime;
+      freqs.forEach(function (freq, idx) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+        gain.gain.setValueAtTime(0, now + idx * 0.15);
+        gain.gain.linearRampToValueAtTime(0.2, now + idx * 0.15 + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.15 + 1.8);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.15);
+        osc.stop(now + idx * 0.15 + 1.8);
+      });
+    } catch (e) {}
+  }
 
   function renderPublicFocus(focusDoc) {
     var body = document.getElementById('focus-body');
     if (!body) return;
 
-    var sessions = [];
+    var adminSessions = [];
     if (focusDoc && focusDoc.data) {
-      sessions = Array.isArray(focusDoc.data) ? focusDoc.data : (focusDoc.data.sessions || []);
+      adminSessions = Array.isArray(focusDoc.data) ? focusDoc.data : (focusDoc.data.sessions || []);
     }
+    var localSessions = getLocalFocusRecords();
+    var allSessions = localSessions.concat(adminSessions);
 
     var historyHtml = '';
-    if (sessions.length > 0) {
+    if (allSessions.length > 0) {
       historyHtml =
         '<div class="pub-section" style="margin-top:32px;">' +
           '<div class="pub-section-title">专注留档</div>' +
           '<div class="pub-list">' +
-            sessions.slice(0, 20).map(function (s) {
+            allSessions.slice(0, 20).map(function (s) {
               var dur = s.durationMinutes || Math.round((s.durationSeconds || 0) / 60) || 1;
               var mode = s.mode === 'countup' ? '正向' : '倒计时';
               var sub = s.subject || '自习';
               var note = s.notes ? ('“' + esc(s.notes) + '”') : '';
+              var dateStr = s.createdAt ? s.createdAt.slice(0, 10) : '';
               return '<div class="pub-row">' +
                 '<div class="pub-row-head">' +
                   '<div class="pub-row-main">' +
                     '<div class="pub-row-title">' + esc(sub) + '</div>' +
-                    '<div class="pub-row-sub">' + (s.createdAt ? s.createdAt.slice(0, 10) : '') + (note ? ' · ' + note : '') + '</div>' +
+                    '<div class="pub-row-sub">' + esc(dateStr) + (note ? ' · ' + note : '') + '</div>' +
                   '</div>' +
                   '<div class="pub-row-value">' + dur + ' 分钟</div>' +
                   '<span class="pub-row-badge">' + mode + '</span>' +
@@ -1272,23 +1354,42 @@
       '<div class="pub-section">' +
         '<div class="pub-section-title">自习室</div>' +
         '<div id="pub-focus-widget"></div>' +
-        '<div class="pub-section" style="margin-top:28px;">' +
-          '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
-            '<div class="pub-section-title" style="margin-bottom:0;">伴读墙</div>' +
-            '<button type="button" class="pub-page-btn" id="pub-focus-refresh" style="padding:4px 12px; font-size:0.75rem;">⟳ 刷新</button>' +
-          '</div>' +
-          '<div class="focus-buddies-list" id="pub-focus-buddies">' +
-            '<div class="focus-buddy-loading">正在读取伴读状态…</div>' +
+      '</div>' +
+      '<div class="pub-section" style="margin-top:28px;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
+          '<div class="pub-section-title" style="margin-bottom:0;">专属席位</div>' +
+          '<div style="display:flex; gap:8px;">' +
+            '<button type="button" class="pub-page-btn" id="pub-seat-login-btn" style="padding:4px 11px; font-size:0.75rem;">输入令牌</button>' +
+            '<button type="button" class="pub-page-btn" id="pub-seats-refresh-btn" style="padding:4px 11px; font-size:0.75rem;">⟳ 刷新</button>' +
           '</div>' +
         '</div>' +
-        '<div id="pub-focus-history">' + historyHtml + '</div>' +
-      '</div>';
+        '<div class="focus-seats-grid" id="pub-focus-seats-grid">' +
+          '<div class="focus-buddy-loading">正在读取席位…</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="pub-section" style="margin-top:28px;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
+          '<div class="pub-section-title" style="margin-bottom:0;">在线伴读</div>' +
+          '<button type="button" class="pub-page-btn" id="pub-focus-refresh" style="padding:4px 11px; font-size:0.75rem;">⟳ 刷新</button>' +
+        '</div>' +
+        '<div class="focus-buddies-list" id="pub-focus-buddies">' +
+          '<div class="focus-buddy-loading">正在读取伴读状态…</div>' +
+        '</div>' +
+      '</div>' +
+      '<div id="pub-focus-history">' + historyHtml + '</div>';
 
     initPublicFocusWidget();
+    loadPublicSeats();
     loadPublicBuddies();
 
-    var refBtn = document.getElementById('pub-focus-refresh');
-    if (refBtn) refBtn.onclick = loadPublicBuddies;
+    var refBuddies = document.getElementById('pub-focus-refresh');
+    if (refBuddies) refBuddies.onclick = loadPublicBuddies;
+
+    var refSeats = document.getElementById('pub-seats-refresh-btn');
+    if (refSeats) refSeats.onclick = loadPublicSeats;
+
+    var seatLoginBtn = document.getElementById('pub-seat-login-btn');
+    if (seatLoginBtn) seatLoginBtn.onclick = handleSeatTokenLogin;
   }
 
   function getPubFocusActive() {
@@ -1321,10 +1422,19 @@
   }
 
   function renderPublicIdleWidget(container) {
-    var defName = savedName() || '书友';
+    var boundHolder = getSeatHolderName();
+    var boundSeatId = getSeatId();
+    var defName = boundHolder || savedName() || '';
+
+    var boundTagHtml = '';
+    if (boundSeatId && boundHolder) {
+      boundTagHtml = '<div style="margin-bottom:6px;"><span class="pub-seat-bound-tag">席位 #' + boundSeatId + ' · ' + esc(boundHolder) + '</span></div>';
+    }
+
     container.innerHTML =
       '<div class="focus-clock-card" style="padding:24px 20px;">' +
         '<div class="focus-setup-view">' +
+          boundTagHtml +
           '<div class="focus-tabs">' +
             '<button type="button" class="focus-tab active" data-mode="countdown">倒计时</button>' +
             '<button type="button" class="focus-tab" data-mode="countup">正向计时</button>' +
@@ -1336,7 +1446,7 @@
             '<button type="button" class="focus-chip" data-min="60">60m</button>' +
           '</div>' +
           '<div style="display:flex; gap:8px; width:100%; max-width:420px; flex-wrap:wrap;">' +
-            '<input type="text" class="input" id="pub-focus-name" value="' + esc(defName) + '" placeholder="座席昵称" style="flex:0 0 110px; font-size:0.86rem;" />' +
+            '<input type="text" class="input" id="pub-focus-name" value="' + esc(defName) + '" placeholder="称谓 / 7位ID（选填）" style="flex:0 0 130px; font-size:0.86rem;" />' +
             '<input type="text" class="input" id="pub-focus-subj" placeholder="专注事项（选填）" style="flex:1; min-width:140px; font-size:0.86rem;" />' +
           '</div>' +
           '<button type="button" class="btn btn-primary focus-btn-start" id="pub-focus-start-btn" style="padding:10px 30px; font-size:0.92rem;">' +
@@ -1373,10 +1483,19 @@
         var mins = activeChip ? parseInt(activeChip.getAttribute('data-min'), 10) : 25;
         var nameInput = document.getElementById('pub-focus-name');
         var subjInput = document.getElementById('pub-focus-subj');
-        var name = (nameInput ? nameInput.value.trim() : '') || '书友';
+        var rawName = (nameInput ? nameInput.value.trim() : '');
         var subj = (subjInput ? subjInput.value.trim() : '') || '自习';
 
-        rememberName(name);
+        var name = rawName;
+        if (!name) {
+          if (boundHolder) {
+            name = boundHolder;
+          } else {
+            name = randomKey7();
+          }
+        } else {
+          rememberName(name);
+        }
 
         var session = {
           id: 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -1397,19 +1516,28 @@
 
   function renderPublicRunningWidget(container, active) {
     var modeLabel = active.mode === 'countup' ? '正向计时' : (active.targetMinutes + ' 分钟倒计时');
+    var boundSeatId = getSeatId();
+    var boundHolder = getSeatHolderName();
+    var boundTagHtml = '';
+    if (boundSeatId && boundHolder) {
+      boundTagHtml = '<span class="pub-seat-bound-tag" style="margin-left:6px;">席位 #' + boundSeatId + '</span>';
+    }
+
     container.innerHTML =
       '<div class="focus-clock-card" style="padding:28px 20px;">' +
         '<div class="focus-running-view">' +
           '<div class="focus-running-meta">' +
             '<span class="focus-running-badge">' + modeLabel + '</span>' +
             '<span class="focus-running-subj">' + esc(active.subject || '自习') + '</span>' +
+            boundTagHtml +
           '</div>' +
           '<div class="focus-dial-container">' +
             '<div class="focus-dial-display" id="pub-focus-digits" style="font-size:3.8rem;">--:--</div>' +
             '<div class="focus-dial-sub" id="pub-focus-sub">专注进行中</div>' +
           '</div>' +
-          '<div class="focus-running-actions">' +
-            '<button type="button" class="btn btn-primary" id="pub-focus-stop-btn" style="padding:8px 22px; font-size:0.86rem;">✓ 结束</button>' +
+          '<div class="focus-running-actions" style="display:flex; justify-content:center; gap:10px;">' +
+            '<button type="button" class="btn btn-primary" id="pub-focus-stop-btn" style="padding:8px 24px; font-size:0.86rem;">✓ 结束留档</button>' +
+            '<button type="button" class="btn btn-secondary" id="pub-focus-cancel-btn" style="padding:8px 16px; font-size:0.86rem;">✕ 放弃</button>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -1417,6 +1545,65 @@
     var stopBtn = document.getElementById('pub-focus-stop-btn');
     if (stopBtn) {
       stopBtn.onclick = function () {
+        var now = Date.now();
+        var elapsedSec = Math.max(0, Math.floor((now - active.startTime) / 1000));
+        var durMin = Math.max(1, Math.round(elapsedSec / 60));
+
+        if (elapsedSec < 50 && active.mode === 'countup') {
+          if (!confirm('本次专注不足 1 分钟，确定要结束吗？（不会留档）')) return;
+          sendPubPresence(active, 'leave');
+          setPubFocusActive(null);
+          initPublicFocusWidget();
+          loadPublicBuddies();
+          return;
+        }
+
+        var defaultNotes = '';
+        var note = prompt('本次专注完成 ' + durMin + ' 分钟。\n请输入本次收获与记录（选填，点击确定留档）：', defaultNotes);
+        if (note === null) return;
+        note = (note || '').trim();
+
+        var recordPayload = {
+          id: 'rec_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          durationMinutes: durMin,
+          mode: active.mode,
+          subject: active.subject || '自习',
+          notes: note,
+          startTime: active.startTime,
+          endTime: now,
+          createdAt: new Date().toISOString()
+        };
+
+        var mySeatId = getSeatId();
+        var myToken = getSeatToken();
+        if (mySeatId && myToken) {
+          fetch('/api/focus-seats', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              action: 'record',
+              seatId: mySeatId,
+              token: myToken,
+              record: recordPayload
+            })
+          }).then(function () {
+            loadPublicSeats();
+          }).catch(function () {});
+        }
+
+        addLocalFocusRecord(recordPayload);
+        sendPubPresence(active, 'leave');
+        setPubFocusActive(null);
+        initPublicFocusWidget();
+        loadPublicBuddies();
+        renderPublicFocus(docs ? docs.focus : null);
+      };
+    }
+
+    var cancelBtn = document.getElementById('pub-focus-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.onclick = function () {
+        if (!confirm('确定放弃本次专注吗？当前进度不会保存。')) return;
         sendPubPresence(active, 'leave');
         setPubFocusActive(null);
         initPublicFocusWidget();
@@ -1424,6 +1611,7 @@
       };
     }
 
+    var chimed = false;
     var tick = function () {
       var act = getPubFocusActive();
       if (!act) { clearInterval(pubFocusTimer); return; }
@@ -1447,7 +1635,11 @@
         digitsEl.textContent = String(rm).padStart(2, '0') + ':' + String(rs).padStart(2, '0');
 
         if (remainSec <= 0) {
-          if (subEl) subEl.textContent = '计时已结束';
+          if (!chimed) {
+            chimed = true;
+            playFocusChime();
+          }
+          if (subEl) subEl.textContent = '计时已结束，可点击下方留档';
         } else {
           if (subEl) subEl.textContent = '剩余 ' + Math.ceil(remainSec / 60) + ' 分钟';
         }
@@ -1471,7 +1663,7 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           id: session.id,
-          name: session.name || '书友',
+          name: session.name || '',
           subject: session.subject || '自习',
           mode: session.mode,
           targetMinutes: session.targetMinutes,
@@ -1491,7 +1683,7 @@
       .then(function (data) {
         var active = (data && Array.isArray(data.active)) ? data.active : [];
         if (active.length === 0) {
-          el.innerHTML = '<div class="focus-buddy-empty">暂无在线书友</div>';
+          el.innerHTML = '<div class="focus-buddy-empty">暂无在线伴读</div>';
           return;
         }
 
@@ -1499,13 +1691,14 @@
         var myActive = getPubFocusActive();
         el.innerHTML = active.map(function (b) {
           var mins = Math.max(1, Math.floor((now - (b.startTime || now)) / 60000));
-          var initial = (b.name || '书').charAt(0).toUpperCase();
+          var displayName = b.name || '—';
+          var initial = displayName.charAt(0).toUpperCase();
           var isMe = myActive && myActive.id === b.id;
           return '<div class="focus-buddy-card' + (isMe ? ' is-me' : '') + '">' +
             '<div class="focus-buddy-av">' + esc(initial) + '</div>' +
             '<div class="focus-buddy-info">' +
               '<div class="focus-buddy-top">' +
-                '<span class="focus-buddy-name">' + esc(b.name || '书友') + '</span>' +
+                '<span class="focus-buddy-name">' + esc(displayName) + '</span>' +
                 (isMe ? '<span class="focus-badge-me">我</span>' : '') +
                 '<span class="focus-buddy-time">' + mins + 'm</span>' +
               '</div>' +
@@ -1519,8 +1712,221 @@
         }).join('');
       })
       .catch(function () {
-        el.innerHTML = '<div class="focus-buddy-empty">暂无在线书友</div>';
+        el.innerHTML = '<div class="focus-buddy-empty">暂无在线伴读</div>';
       });
+  }
+
+  function loadPublicSeats() {
+    var container = document.getElementById('pub-focus-seats-grid');
+    if (!container) return;
+
+    var myToken = getSeatToken();
+    var url = '/api/focus-seats' + (myToken ? ('?token=' + encodeURIComponent(myToken)) : '');
+
+    fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok || !Array.isArray(res.seats)) {
+          container.innerHTML = '<div class="focus-buddy-empty">席位状态暂未就绪</div>';
+          return;
+        }
+
+        var seats = res.seats;
+        var mySeatId = getSeatId();
+
+        container.innerHTML = seats.map(function (s) {
+          var isMine = s.isOwner || (myToken && s.id === mySeatId);
+          var badgeClass = isMine ? 'mine' : (s.claimed ? 'taken' : 'free');
+          var badgeText = isMine ? '当前绑定' : (s.claimed ? '已认领' : '空闲');
+          var holderText = s.claimed ? esc(s.holder || '已认领') : '虚位以待';
+          var stats = s.stats || { totalMinutes: 0, totalSessions: 0 };
+          var totalMin = stats.totalMinutes || 0;
+          var totalSessions = stats.totalSessions || 0;
+
+          var actionsHtml = '';
+          if (isMine) {
+            actionsHtml =
+              '<button type="button" class="focus-seat-btn" data-seat-token-show="' + s.id + '">令牌</button>' +
+              '<button type="button" class="focus-seat-btn" data-seat-transfer="' + s.id + '">转交</button>' +
+              '<button type="button" class="focus-seat-btn btn-danger" data-seat-release="' + s.id + '">释放</button>';
+          } else if (!s.claimed) {
+            actionsHtml =
+              '<button type="button" class="focus-seat-btn btn-claim" data-seat-claim="' + s.id + '">认领席位</button>';
+          }
+
+          var recordsCount = (s.records && s.records.length) ? s.records.length : 0;
+          if (recordsCount > 0) {
+            actionsHtml += '<button type="button" class="focus-seat-btn" data-seat-records="' + s.id + '">留档 (' + recordsCount + ')</button>';
+          }
+
+          var logsHtml = '';
+          if (s.records && s.records.length > 0) {
+            logsHtml =
+              '<div class="focus-seat-logs" id="seat-logs-' + s.id + '">' +
+                s.records.slice(0, 10).map(function (r) {
+                  var rDur = r.durationMinutes || 1;
+                  var rSub = r.subject || '自习';
+                  var rNote = r.notes ? ('“' + esc(r.notes) + '”') : '';
+                  var rDate = r.createdAt ? r.createdAt.slice(0, 10) : '';
+                  return '<div class="focus-seat-log-item">' +
+                    '<div><strong>' + esc(rSub) + '</strong> · ' + rDur + ' 分钟 <span style="color:var(--text-muted);font-size:0.72rem;">' + esc(rDate) + '</span></div>' +
+                    (rNote ? '<div style="color:var(--text-secondary);">' + rNote + '</div>' : '') +
+                  '</div>';
+                }).join('') +
+              '</div>';
+          }
+
+          return '<div class="focus-seat-card' + (isMine ? ' is-mine' : '') + '" data-seat-card-id="' + s.id + '">' +
+            '<div class="focus-seat-head">' +
+              '<span class="focus-seat-title">' + esc(s.name) + '</span>' +
+              '<span class="seat-badge ' + badgeClass + '">' + badgeText + '</span>' +
+            '</div>' +
+            '<div class="focus-seat-body">' +
+              '<div class="focus-seat-holder' + (s.claimed ? '' : ' empty') + '">' + holderText + '</div>' +
+              '<div class="focus-seat-stats">累计 ' + totalMin + ' 分钟 · ' + totalSessions + ' 次专注</div>' +
+            '</div>' +
+            (actionsHtml ? ('<div class="focus-seat-actions">' + actionsHtml + '</div>') : '') +
+            logsHtml +
+          '</div>';
+        }).join('');
+
+        bindSeatActions(container, seats);
+      })
+      .catch(function () {
+        container.innerHTML = '<div class="focus-buddy-empty">席位状态暂未就绪</div>';
+      });
+  }
+
+  function bindSeatActions(container, seats) {
+    container.onclick = function (e) {
+      var target = e.target;
+      if (!target) return;
+
+      var claimId = target.getAttribute('data-seat-claim');
+      if (claimId) {
+        var sid = parseInt(claimId, 10);
+        var def = savedName() || '';
+        var holder = prompt('认领席位 #' + sid + '，请输入你的称呼或代号：', def);
+        if (holder === null) return;
+        holder = (holder || '').trim();
+        if (!holder) holder = randomKey7();
+
+        fetch('/api/focus-seats', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'claim', seatId: sid, holder: holder })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.ok) {
+              setSeatBinding(data.token, sid, data.holder);
+              rememberName(data.holder);
+              alert('席位 #' + sid + ' 认领成功！\n你的专属 7 位令牌为：' + data.token + '\n\n可凭此令牌在其他设备登入或转交。请妥善保存。');
+              initPublicFocusWidget();
+              loadPublicSeats();
+            } else {
+              alert(data.error || '认领失败');
+            }
+          })
+          .catch(function (err) { alert('请求失败：' + err.message); });
+        return;
+      }
+
+      var tokenShowId = target.getAttribute('data-seat-token-show');
+      if (tokenShowId) {
+        var curToken = getSeatToken();
+        alert('席位 #' + tokenShowId + ' 专属令牌：\n' + curToken + '\n\n可在其他手机或电脑上点击「输入令牌」登入绑定。');
+        return;
+      }
+
+      var transferId = target.getAttribute('data-seat-transfer');
+      if (transferId) {
+        var tsid = parseInt(transferId, 10);
+        var newHolder = prompt('将席位 #' + tsid + ' 转交给他人，请输入对方称呼或代号：', '');
+        if (newHolder === null) return;
+        newHolder = (newHolder || '').trim();
+        if (!newHolder) newHolder = randomKey7();
+
+        var curTok = getSeatToken();
+        fetch('/api/focus-seats', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'transfer', seatId: tsid, token: curTok, newHolder: newHolder })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.ok) {
+              setSeatBinding(null);
+              alert('席位 #' + tsid + ' 已转交给 ' + data.holder + '！\n新专属令牌为：' + data.token + '\n请将该令牌交予对方。');
+              initPublicFocusWidget();
+              loadPublicSeats();
+            } else {
+              alert(data.error || '转交失败');
+            }
+          })
+          .catch(function (err) { alert('请求失败：' + err.message); });
+        return;
+      }
+
+      var releaseId = target.getAttribute('data-seat-release');
+      if (releaseId) {
+        var rsid = parseInt(releaseId, 10);
+        if (!confirm('确定要释放席位 #' + rsid + ' 吗？释放后其他朋友可认领。')) return;
+
+        var relTok = getSeatToken();
+        fetch('/api/focus-seats', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'release', seatId: rsid, token: relTok })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.ok) {
+              setSeatBinding(null);
+              alert('席位已释放。');
+              initPublicFocusWidget();
+              loadPublicSeats();
+            } else {
+              alert(data.error || '释放失败');
+            }
+          })
+          .catch(function (err) { alert('请求失败：' + err.message); });
+        return;
+      }
+
+      var recordsId = target.getAttribute('data-seat-records');
+      if (recordsId) {
+        var card = target.closest('.focus-seat-card');
+        if (card) card.classList.toggle('open-logs');
+        return;
+      }
+    };
+  }
+
+  function handleSeatTokenLogin() {
+    var token = prompt('请输入你的 7 位席位专属令牌：', '');
+    if (!token) return;
+    token = token.trim();
+
+    fetch('/api/focus-seats?token=' + encodeURIComponent(token))
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok || !Array.isArray(res.seats)) {
+          alert('验证失败，请稍后再试');
+          return;
+        }
+        var matched = res.seats.find(function (s) { return s.isOwner; });
+        if (matched) {
+          setSeatBinding(token, matched.id, matched.holder);
+          rememberName(matched.holder);
+          alert('登入成功！已绑定 席位 #' + matched.id + '（' + matched.holder + '）');
+          initPublicFocusWidget();
+          loadPublicSeats();
+        } else {
+          alert('未找到与该令牌匹配的席位，请检查输入是否正确。');
+        }
+      })
+      .catch(function (err) { alert('验证出错：' + err.message); });
   }
 
   /* =========================================================
@@ -1568,7 +1974,7 @@
   }
 
   function switchTab(tab) {
-    if (TABS.indexOf(tab) === -1) tab = 'diary';
+    if (TABS.indexOf(tab) === -1) tab = 'focus';
     activeTab = tab;
 
     TABS.forEach(function (t) {
@@ -1588,15 +1994,25 @@
         renderBoard();
       }
     } else if (tab === 'focus') {
-      /* 自习室有自己的在线时钟与伴读墙，直接渲染，不强依赖 doc 接口 */
+      /* 自习室有自己的在线时钟与伴读，直接渲染，不强依赖 doc 接口 */
       renderPublicFocus(docs ? docs.focus : null);
       if (!docLoaded && !docLoading) loadDocs();
-    } else if (tab !== 'diary') {
+    } else if (tab === 'diary') {
+      if (firstLoad) {
+        loadDiary();
+      }
+    } else {
       /* 命中缓存也要重画 —— 面板是切一次画一次，
          少了 paintDoc 这条分支，第二个被点开的板块会是空白。 */
       if (docLoaded) paintDoc(tab);
       else { showDocLoading(tab); loadDocs(); }
     }
+
+    try {
+      if (location.hash !== '#' + tab) {
+        history.replaceState(null, '', '#' + tab);
+      }
+    } catch (e) {}
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -1922,6 +2338,13 @@
         if (btn) switchTab(btn.getAttribute('data-tab'));
       });
     }
+
+    var initTab = 'focus';
+    if (location.hash) {
+      var h = location.hash.replace('#', '');
+      if (TABS.indexOf(h) !== -1) initTab = h;
+    }
+    switchTab(initTab);
 
     var tl = document.getElementById('pub-timeline');
     if (tl) tl.innerHTML = '<div class="pub-state">正在读取…</div>';

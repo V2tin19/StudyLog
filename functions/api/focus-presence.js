@@ -51,8 +51,8 @@ export async function onRequestPost({ env, request }) {
   if (!id) return json({ ok: false, error: '缺少会话标识' }, 400, NO_STORE);
 
   const action = body.action || 'heartbeat';
-  const name = String(body.name || '书友').slice(0, 20);
-  const subject = String(body.subject || '自习专注').slice(0, 30);
+  const name = String(body.name || '').slice(0, 20);
+  const subject = String(body.subject || '自习').slice(0, 30);
   const mode = body.mode === 'countdown' ? 'countdown' : 'countup';
   const targetMinutes = parseInt(body.targetMinutes, 10) || 25;
   const startTime = parseInt(body.startTime, 10) || Date.now();

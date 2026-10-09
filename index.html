@@ -603,15 +603,19 @@
     </section>
 
     <nav class="pub-tabs" id="pub-tabs">
-      <button class="pub-tab active" data-tab="diary">日记</button>
+      <button class="pub-tab active" data-tab="focus">自习室</button>
+      <button class="pub-tab" data-tab="diary">日记</button>
       <button class="pub-tab" data-tab="study">阅读</button>
-      <button class="pub-tab" data-tab="focus">自习室</button>
       <button class="pub-tab" data-tab="schedule">日程</button>
       <button class="pub-tab" data-tab="goals">目标</button>
       <button class="pub-tab" data-tab="board">留言</button>
     </nav>
 
-    <section class="pub-panel" id="pub-panel-diary">
+    <section class="pub-panel" id="pub-panel-focus">
+      <div id="focus-body"></div>
+    </section>
+
+    <section class="pub-panel hidden" id="pub-panel-diary">
       <div class="pub-filter hidden" id="pub-filter"></div>
       <div class="pub-hero" id="pub-hero"></div>
       <div id="pub-timeline" class="pub-timeline"></div>
@@ -620,10 +624,6 @@
 
     <section class="pub-panel hidden" id="pub-panel-study">
       <div id="study-body"></div>
-    </section>
-
-    <section class="pub-panel hidden" id="pub-panel-focus">
-      <div id="focus-body"></div>
     </section>
 
     <section class="pub-panel hidden" id="pub-panel-schedule">

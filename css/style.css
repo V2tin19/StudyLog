@@ -1608,6 +1608,166 @@ tr:hover td { background: var(--bg-hover); }
   margin-top: 6px;
 }
 
+/* 专属席位令牌卡片与网格 */
+.focus-seats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.focus-seat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all var(--transition);
+}
+
+.focus-seat-card:hover {
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.focus-seat-card.is-mine {
+  border-color: var(--accent-blue);
+  background: rgba(123, 164, 199, 0.05);
+}
+
+.focus-seat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.focus-seat-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.seat-badge {
+  font-size: 0.68rem;
+  border-radius: 999px;
+  padding: 1px 7px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.seat-badge.free {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+}
+
+.seat-badge.taken {
+  color: var(--text-muted);
+  border-color: var(--border-color);
+}
+
+.seat-badge.mine {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+  background: rgba(123, 164, 199, 0.12);
+}
+
+.focus-seat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.focus-seat-holder {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.focus-seat-holder.empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: normal;
+}
+
+.focus-seat-stats {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.focus-seat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.focus-seat-btn {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.focus-seat-btn:hover {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.focus-seat-btn.btn-claim {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.focus-seat-btn.btn-danger:hover {
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+.focus-seat-logs {
+  display: none;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-light);
+  font-size: 0.75rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.focus-seat-card.open-logs .focus-seat-logs {
+  display: block;
+}
+
+.focus-seat-log-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.focus-seat-log-item:last-child {
+  border-bottom: none;
+}
+
+.pub-seat-bound-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+  color: var(--accent-blue);
+  background: rgba(123, 164, 199, 0.12);
+  border: 1px solid var(--accent-blue);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
 @media (max-width: 600px) {
   .focus-dial-display { font-size: 3.6rem; }
   .focus-stats-grid { grid-template-columns: repeat(2, 1fr); }
