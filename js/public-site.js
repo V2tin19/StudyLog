@@ -1327,12 +1327,27 @@
               var mode = s.mode === 'countup' ? '正向' : '倒计时';
               var sub = s.subject || '自习';
               var note = s.notes ? ('“' + esc(s.notes) + '”') : '';
+              var startT = '';
+              if (s.startTime) {
+                var d = new Date(s.startTime);
+                var hh = String(d.getHours()).padStart(2, '0');
+                var mm = String(d.getMinutes()).padStart(2, '0');
+                startT = hh + ':' + mm;
+              } else if (s.createdAt) {
+                var d = new Date(s.createdAt);
+                if (!isNaN(d.getTime())) {
+                  var hh = String(d.getHours()).padStart(2, '0');
+                  var mm = String(d.getMinutes()).padStart(2, '0');
+                  startT = hh + ':' + mm;
+                }
+              }
               var dateStr = s.createdAt ? s.createdAt.slice(0, 10) : '';
+              var timeDisplay = dateStr ? (dateStr + (startT ? ' ' + startT : '')) : startT;
               return '<div class="pub-row">' +
                 '<div class="pub-row-head">' +
                   '<div class="pub-row-main">' +
                     '<div class="pub-row-title">' + esc(sub) + '</div>' +
-                    '<div class="pub-row-sub">' + esc(dateStr) + (note ? ' · ' + note : '') + '</div>' +
+                    '<div class="pub-row-sub">' + esc(timeDisplay) + (note ? ' · ' + note : '') + '</div>' +
                   '</div>' +
                   '<div class="pub-row-value">' + dur + ' 分钟</div>' +
                   '<span class="pub-row-badge">' + mode + '</span>' +
@@ -1424,10 +1439,10 @@
         '<div class="focus-setup-view">' +
           boundTagHtml +
           '<div class="focus-tabs">' +
-            '<button type="button" class="focus-tab active" data-mode="countdown">倒计时</button>' +
-            '<button type="button" class="focus-tab" data-mode="countup">正向计时</button>' +
+            '<button type="button" class="focus-tab active" data-mode="countup">正向计时</button>' +
+            '<button type="button" class="focus-tab" data-mode="countdown">倒计时</button>' +
           '</div>' +
-          '<div class="focus-preset-chips" id="pub-focus-chips">' +
+          '<div class="focus-preset-chips" id="pub-focus-chips" style="display:none;">' +
             '<button type="button" class="focus-chip" data-min="15">15m</button>' +
             '<button type="button" class="focus-chip active" data-min="25">25m</button>' +
             '<button type="button" class="focus-chip" data-min="45">45m</button>' +
@@ -1466,7 +1481,7 @@
     if (startBtn) {
       startBtn.onclick = function () {
         var activeTab = container.querySelector('.focus-tab.active');
-        var mode = activeTab ? activeTab.getAttribute('data-mode') : 'countdown';
+        var mode = activeTab ? activeTab.getAttribute('data-mode') : 'countup';
         var activeChip = container.querySelector('#pub-focus-chips .focus-chip.active');
         var mins = activeChip ? parseInt(activeChip.getAttribute('data-min'), 10) : 25;
         var nameInput = document.getElementById('pub-focus-name');
@@ -1792,9 +1807,24 @@
                   var rDur = r.durationMinutes || 1;
                   var rSub = r.subject || '自习';
                   var rNote = r.notes ? ('“' + esc(r.notes) + '”') : '';
+                  var startT = '';
+                  if (r.startTime) {
+                    var d = new Date(r.startTime);
+                    var hh = String(d.getHours()).padStart(2, '0');
+                    var mm = String(d.getMinutes()).padStart(2, '0');
+                    startT = hh + ':' + mm;
+                  } else if (r.createdAt) {
+                    var d = new Date(r.createdAt);
+                    if (!isNaN(d.getTime())) {
+                      var hh = String(d.getHours()).padStart(2, '0');
+                      var mm = String(d.getMinutes()).padStart(2, '0');
+                      startT = hh + ':' + mm;
+                    }
+                  }
                   var rDate = r.createdAt ? r.createdAt.slice(0, 10) : '';
+                  var rTimeDisplay = rDate ? (rDate + (startT ? ' ' + startT : '')) : startT;
                   return '<div class="focus-seat-log-item">' +
-                    '<div><strong>' + esc(rSub) + '</strong> · ' + rDur + ' 分钟 <span style="color:var(--text-muted);font-size:0.72rem;">' + esc(rDate) + '</span></div>' +
+                    '<div><strong>' + esc(rSub) + '</strong> · ' + rDur + ' 分钟 <span style="color:var(--text-muted);font-size:0.72rem;">' + esc(rTimeDisplay) + '</span></div>' +
                     (rNote ? '<div style="color:var(--text-secondary);">' + rNote + '</div>' : '') +
                   '</div>';
                 }).join('') +

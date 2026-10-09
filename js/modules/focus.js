@@ -151,10 +151,9 @@ const Focus = {
 
     const durMin = Math.max(1, Math.round(elapsedSec / 60));
     const startStr = Utils.formatTime(new Date(active.startTime));
-    const endStr = Utils.formatTime(new Date());
 
     document.getElementById('focus-modal-dur').textContent = `${durMin} 分钟 (${this._formatHMS(elapsedSec)})`;
-    document.getElementById('focus-modal-span').textContent = `${startStr} ~ ${endStr}`;
+    document.getElementById('focus-modal-span').textContent = startStr;
     
     const subInput = document.getElementById('focus-modal-subject');
     if (subInput) subInput.value = active.subject || '自习专注';
@@ -507,12 +506,12 @@ const Focus = {
     return `
       <div class="focus-setup-view">
         <div class="focus-tabs">
-          <button class="focus-tab active" data-mode="countdown">倒计时</button>
-          <button class="focus-tab" data-mode="countup">正向计时</button>
+          <button class="focus-tab active" data-mode="countup">正向计时</button>
+          <button class="focus-tab" data-mode="countdown">倒计时</button>
         </div>
 
-        <!-- 倒计时模式选项 -->
-        <div class="focus-options" id="focus-countdown-options">
+        <!-- 倒计时模式选项（正向计时时隐藏） -->
+        <div class="focus-options hidden" id="focus-countdown-options">
           <div class="focus-preset-chips">
             <button class="focus-chip" data-min="15">15 分钟</button>
             <button class="focus-chip active" data-min="25">25 分钟</button>
@@ -526,8 +525,8 @@ const Focus = {
           </div>
         </div>
 
-        <!-- 正向计时说明 -->
-        <div class="focus-options hidden" id="focus-countup-options"></div>
+        <!-- 正向计时模式 -->
+        <div class="focus-options" id="focus-countup-options"></div>
 
         <!-- 专注事项输入与快捷标签 -->
         <div class="focus-subject-row">
@@ -657,15 +656,14 @@ const Focus = {
           <div class="focus-date-header">${dayLabel}</div>
           <div class="focus-date-cards">
             ${daySessions.map(s => {
-              const startT = s.startTime ? Utils.formatTime(new Date(s.startTime)) : '--:--';
-              const endT = s.endTime ? Utils.formatTime(new Date(s.endTime)) : '--:--';
+              const startT = s.startTime ? Utils.formatTime(new Date(s.startTime)) : (s.createdAt ? Utils.formatTime(new Date(s.createdAt)) : '--:--');
               const durM = s.durationMinutes || Math.round((s.durationSeconds || 0) / 60) || 1;
               const hasNotes = s.notes && s.notes.trim();
 
               return `
                 <div class="focus-session-card">
                   <div class="focus-card-left">
-                    <div class="focus-card-time">${startT} ~ ${endT}</div>
+                    <div class="focus-card-time">${startT}</div>
                     <div class="focus-card-badge-row">
                       <span class="focus-dur-pill">⏱ ${durM} 分钟</span>
                       <span class="focus-mode-pill">${s.mode === 'countup' ? '正向' : '倒计时'}</span>
@@ -737,7 +735,7 @@ const Focus = {
     // 4. 开启按钮
     document.getElementById('focus-btn-start')?.addEventListener('click', () => {
       const activeTab = container.querySelector('.focus-tab.active');
-      const mode = activeTab?.dataset.mode || 'countdown';
+      const mode = activeTab?.dataset.mode || 'countup';
       let targetM = 25;
 
       if (mode === 'countdown') {
