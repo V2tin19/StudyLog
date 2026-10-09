@@ -34,9 +34,10 @@ const Sync = {
     study_skills: 'study',
     study_checkin: 'study',
     weekly_schedule: 'schedule',
-    goal_list: 'goals'
+    goal_list: 'goals',
+    focus_sessions: 'focus'
   },
-  DOC_KEYS: ['study', 'schedule', 'goals'],
+  DOC_KEYS: ['study', 'schedule', 'goals', 'focus'],
 
   _enabled: null,
   _state: 'idle',     /* idle | syncing | ok | partial | error | off */
@@ -315,6 +316,7 @@ const Sync = {
     }
     if (key === 'schedule') return Store.get(Extras.SCHEDULE_KEY, {});
     if (key === 'goals') return Store.get(Extras.GOALS_KEY, []);
+    if (key === 'focus') return Store.get('focus_sessions', []);
     return null;
   },
 
@@ -339,6 +341,8 @@ const Sync = {
         Store.set(Extras.SCHEDULE_KEY, data);
       } else if (key === 'goals') {
         Store.set(Extras.GOALS_KEY, data);
+      } else if (key === 'focus') {
+        Store.set('focus_sessions', Array.isArray(data) ? data : (data && data.sessions ? data.sessions : []));
       }
     } finally {
       this._internal = false;

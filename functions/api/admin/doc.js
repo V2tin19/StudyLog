@@ -16,7 +16,7 @@
 import { json, dbMissing, requireAdmin } from '../_shared.js';
 
 /* 允许的 key，写别的会被拒 —— 防止前端笔误在库里攒垃圾 */
-const VALID_KEYS = ['study', 'schedule', 'goals'];
+const VALID_KEYS = ['study', 'schedule', 'goals', 'focus'];
 const MAX_PAYLOAD = 800000;   /* 字符数上限，防呆；正常个人数据也就几十 KB */
 
 const NO_STORE = { 'cache-control': 'no-store' };

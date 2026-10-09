@@ -834,3 +834,784 @@ tr:hover td { background: var(--bg-hover); }
 }
 .pagination-info { font-size: 0.82rem; color: var(--text-secondary); }
 .btn.disabled { opacity: 0.45; pointer-events: none; }
+
+/* ============================================
+   自习室模块 (Focus Room) 样式
+   ============================================ */
+.focus-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+.focus-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.focus-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.focus-quote {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.focus-nick-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-tertiary);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.focus-nick-val {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.focus-nick-btn {
+  font-size: 0.85rem;
+  color: var(--accent-blue);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+/* 核心时钟卡片 */
+.focus-clock-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  padding: 32px 28px;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.focus-setup-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.focus-tabs {
+  display: inline-flex;
+  background: var(--bg-tertiary);
+  padding: 4px;
+  border-radius: 999px;
+  gap: 4px;
+}
+
+.focus-tab {
+  padding: 7px 20px;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+}
+
+.focus-tab.active {
+  background: var(--bg-card);
+  color: var(--accent-blue);
+  box-shadow: var(--shadow-sm);
+}
+
+.focus-preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.focus-chip {
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.focus-chip:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.focus-chip.active {
+  background: var(--accent-blue);
+  color: #fff;
+  border-color: var(--accent-blue);
+}
+
+.focus-custom-min-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.focus-custom-input {
+  width: 90px;
+  text-align: center;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}
+
+.focus-unit {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.focus-countup-hint {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.focus-subject-row {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.focus-subject-input {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.focus-quick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.focus-sub-chip {
+  font-size: 0.76rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.focus-sub-chip:hover {
+  color: var(--accent-blue);
+  background: var(--bg-hover);
+}
+
+.focus-btn-start {
+  padding: 12px 36px;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(123, 164, 199, 0.3);
+  transition: all var(--transition);
+}
+
+.focus-btn-start:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(123, 164, 199, 0.4);
+}
+
+/* 运行中时钟 */
+.focus-running-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.focus-running-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.focus-running-badge {
+  font-size: 0.76rem;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(123, 164, 199, 0.15);
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+.focus-running-subj {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.focus-running-start {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.focus-dial-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  width: 100%;
+}
+
+.focus-dial-display {
+  font-size: 4.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -2px;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.focus-dial-sub {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.focus-progress-bar-wrap {
+  width: 100%;
+  max-width: 380px;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.focus-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.focus-running-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.focus-btn-finish {
+  padding: 10px 26px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.focus-btn-cancel {
+  padding: 10px 22px;
+  border-radius: 999px;
+  opacity: 0.8;
+}
+
+.focus-zen-toggle {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.focus-zen-toggle:hover {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+/* 禅意全屏模式 */
+.focus-clock-card.zen-fullscreen {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 9999;
+  border-radius: 0;
+  border: none;
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.focus-clock-card.zen-fullscreen .focus-dial-display {
+  font-size: 8rem;
+}
+
+/* 在线伴读墙 */
+.focus-buddies-section, .focus-timeline-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.focus-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.focus-sec-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focus-badge-count {
+  font-size: 0.72rem;
+  color: var(--accent-green);
+  background: rgba(140, 184, 160, 0.15);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.focus-refresh-btn {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.focus-refresh-btn:hover { color: var(--accent-blue); }
+
+.focus-buddies-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.focus-buddy-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  position: relative;
+  transition: all var(--transition);
+}
+
+.focus-buddy-card.is-me {
+  border-color: var(--accent-blue);
+  background: rgba(123, 164, 199, 0.08);
+}
+
+.focus-buddy-av {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+  flex: 0 0 auto;
+}
+
+.focus-buddy-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.focus-buddy-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.focus-buddy-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-badge-me {
+  font-size: 0.65rem;
+  color: var(--accent-blue);
+  background: rgba(123, 164, 199, 0.2);
+  padding: 0 5px;
+  border-radius: 4px;
+}
+
+.focus-buddy-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.focus-buddy-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 0.74rem;
+}
+
+.focus-buddy-tag {
+  color: var(--accent-orange);
+  font-size: 0.7rem;
+}
+
+.focus-buddy-subj {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-buddy-pulse {
+  width: 7px;
+  height: 7px;
+  background: var(--accent-green);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(140, 184, 160, 0.6);
+  animation: buddyPulse 2s infinite;
+  flex: 0 0 auto;
+}
+
+@keyframes buddyPulse {
+  0% { box-shadow: 0 0 0 0 rgba(140, 184, 160, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(140, 184, 160, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(140, 184, 160, 0); }
+}
+
+.focus-buddy-empty, .focus-buddy-loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* 统计卡片网格 */
+.focus-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.focus-stat-card {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.focus-stat-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent-blue);
+  line-height: 1.2;
+}
+
+.focus-stat-lbl {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* 留档时间线 */
+.focus-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.focus-date-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.focus-date-header {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--border-light);
+}
+
+.focus-date-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.focus-session-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  transition: all var(--transition);
+}
+
+.focus-session-card:hover {
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.focus-session-card > .focus-card-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.focus-card-time {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.focus-card-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.focus-dur-pill {
+  font-size: 0.74rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(123, 164, 199, 0.15);
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+.focus-mode-pill {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.focus-subj-pill {
+  font-size: 0.74rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(212, 167, 106, 0.15);
+  color: var(--accent-orange);
+  font-weight: 500;
+}
+
+.focus-card-right {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+}
+
+.focus-del-btn {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all var(--transition);
+}
+
+.focus-del-btn:hover {
+  color: var(--accent-red);
+  background: rgba(201, 122, 122, 0.1);
+}
+
+.focus-card-notes {
+  margin-top: 2px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border-left: 3px solid var(--accent-blue);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: 8px;
+}
+
+.focus-notes-quote {
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--accent-blue);
+  font-family: Georgia, serif;
+}
+
+.focus-notes-text {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.focus-empty-timeline {
+  text-align: center;
+  padding: 36px 16px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.focus-empty-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* 反思收获弹窗 */
+.focus-modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 92%;
+  max-width: 520px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.focus-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.focus-modal-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.focus-modal-close {
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.focus-modal-meta {
+  display: flex;
+  gap: 16px;
+  background: var(--bg-tertiary);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+}
+
+.focus-meta-label { color: var(--text-muted); }
+.focus-meta-val { font-weight: 600; color: var(--accent-blue); }
+
+.focus-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.focus-field-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.focus-modal-input {
+  padding: 9px 12px;
+  font-size: 0.88rem;
+}
+
+.focus-modal-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.focus-tag-chip {
+  font-size: 0.74rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.focus-tag-chip:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.focus-modal-textarea {
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  resize: vertical;
+}
+
+.focus-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+@media (max-width: 600px) {
+  .focus-dial-display { font-size: 3.6rem; }
+  .focus-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .focus-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .focus-banner-right { align-self: flex-start; }
+  .focus-clock-card.zen-fullscreen .focus-dial-display { font-size: 5rem; }
+}
