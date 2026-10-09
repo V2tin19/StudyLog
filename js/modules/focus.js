@@ -1,6 +1,6 @@
 /* ============================================
    Focus - 在线自习室 / 专注时钟与收获留档
-   - 正向心流计时 / 反向番茄钟
+   - 正向计时 / 倒计时
    - 绝不断流：基于绝对时间戳（Date.now），锁屏/切后台/关网页重开毫秒不差
    - 伴读墙：轻量在线协同，展示当前自习书友与专注状态
    - 收获归档：每次专注结束像写日记一样记录心得，支持时间线回顾与云端同步
@@ -267,8 +267,7 @@ const Focus = {
     if (list.length === 0) {
       listEl.innerHTML = `
         <div class="focus-buddy-empty">
-          <span class="focus-buddy-empty-icon">🌱</span>
-          <span>当前自习室只有你一人，开启一段安静的心流时光吧</span>
+          <span>暂无在线书友</span>
         </div>
       `;
       return;
@@ -289,11 +288,11 @@ const Focus = {
               <span class="focus-buddy-time">已专注 ${mins}m</span>
             </div>
             <div class="focus-buddy-sub">
-              <span class="focus-buddy-tag">${b.mode === 'countup' ? '心流' : '番茄'}</span>
-              <span class="focus-buddy-subj">${Utils.esc(b.subject || '自习专注')}</span>
+              <span class="focus-buddy-tag">${b.mode === 'countup' ? '正向' : '倒计时'}</span>
+              <span class="focus-buddy-subj">${Utils.esc(b.subject || '自习')}</span>
             </div>
           </div>
-          <span class="focus-buddy-pulse" title="专注进行中"></span>
+          <span class="focus-buddy-pulse" title="专注中"></span>
         </div>
       `;
     }).join('');
@@ -385,7 +384,7 @@ const Focus = {
         <section class="focus-buddies-section">
           <div class="focus-sec-head">
             <div class="focus-sec-title">
-              <span>伴读墙 · 正在自习的书友</span>
+              <span>伴读墙</span>
               <span class="focus-badge-count"><span id="focus-buddies-count">${this._activeBuddies.length}</span> 人在线</span>
             </div>
             <button class="focus-refresh-btn" id="focus-buddies-refresh" title="刷新在线书友">⟳ 刷新</button>
@@ -398,7 +397,7 @@ const Focus = {
         <!-- 历史留档与收获回顾 -->
         <section class="focus-timeline-section">
           <div class="focus-sec-head">
-            <div class="focus-sec-title">专注留档 · 历史收获</div>
+            <div class="focus-sec-title">专注留档</div>
           </div>
 
           <!-- 统计指标 -->
@@ -432,7 +431,7 @@ const Focus = {
       <div id="focus-reflection-modal" class="dialog-overlay hidden">
         <div class="focus-modal-box">
           <div class="focus-modal-header">
-            <h3 class="focus-modal-title">✨ 专注完成 · 记录这次的收获</h3>
+            <h3 class="focus-modal-title">专注完成 · 记录留档</h3>
             <button class="focus-modal-close" id="focus-modal-close">×</button>
           </div>
           <div class="focus-modal-meta">
@@ -447,21 +446,21 @@ const Focus = {
           </div>
 
           <div class="focus-modal-field">
-            <label class="focus-field-label">专注主题 / 事项</label>
-            <input type="text" class="input focus-modal-input" id="focus-modal-subject" placeholder="比如：数学、编程、英语精读..." maxlength="30" />
+            <label class="focus-field-label">专注事项</label>
+            <input type="text" class="input focus-modal-input" id="focus-modal-subject" placeholder="专注事项" maxlength="30" />
             <div class="focus-modal-tags">
               ${this.PRESET_TAGS.map(t => `<button type="button" class="focus-tag-chip" data-tag="${t}">${t}</button>`).join('')}
             </div>
           </div>
 
           <div class="focus-modal-field">
-            <label class="focus-field-label">收获与心得（像写日记一样记下来）</label>
-            <textarea class="textarea focus-modal-textarea" id="focus-modal-notes" rows="4" placeholder="写下这次专注的收获、弄懂的难点、做完的事情，或者此刻的心流感悟…"></textarea>
+            <label class="focus-field-label">收获与心得（选填）</label>
+            <textarea class="textarea focus-modal-textarea" id="focus-modal-notes" rows="4" placeholder="记录本次收获与心得..."></textarea>
           </div>
 
           <div class="focus-modal-actions">
-            <button type="button" class="btn btn-secondary" id="focus-modal-discard">不留心得，直接保存</button>
-            <button type="button" class="btn btn-primary" id="focus-modal-save">保存留档</button>
+            <button type="button" class="btn btn-secondary" id="focus-modal-discard">直接保存</button>
+            <button type="button" class="btn btn-primary" id="focus-modal-save">保存</button>
           </div>
         </div>
       </div>
@@ -493,8 +492,8 @@ const Focus = {
     return `
       <div class="focus-setup-view">
         <div class="focus-tabs">
-          <button class="focus-tab active" data-mode="countdown">番茄倒计时</button>
-          <button class="focus-tab" data-mode="countup">心流正向计时</button>
+          <button class="focus-tab active" data-mode="countdown">倒计时</button>
+          <button class="focus-tab" data-mode="countup">正向计时</button>
         </div>
 
         <!-- 倒计时模式选项 -->
@@ -513,13 +512,11 @@ const Focus = {
         </div>
 
         <!-- 正向计时说明 -->
-        <div class="focus-options hidden" id="focus-countup-options">
-          <p class="focus-countup-hint">心流正向计时：不设上限，专心沉浸，想停就停。</p>
-        </div>
+        <div class="focus-options hidden" id="focus-countup-options"></div>
 
         <!-- 专注事项输入与快捷标签 -->
         <div class="focus-subject-row">
-          <input type="text" class="input focus-subject-input" id="focus-start-subject" placeholder="正在专注的主题（例如：阅读《三体》、力扣刷题、英语听力）" maxlength="30" />
+          <input type="text" class="input focus-subject-input" id="focus-start-subject" placeholder="专注事项（选填）" maxlength="30" />
           <div class="focus-quick-tags">
             ${this.PRESET_TAGS.map(t => `<button type="button" class="focus-sub-chip" data-tag="${t}">${t}</button>`).join('')}
           </div>
@@ -529,7 +526,7 @@ const Focus = {
         <div class="focus-start-action">
           <button class="btn btn-primary focus-btn-start" id="focus-btn-start">
             <span class="focus-btn-icon">▶</span>
-            <span>开启专注时光</span>
+            <span>开始专注</span>
           </button>
         </div>
       </div>
@@ -537,21 +534,21 @@ const Focus = {
   },
 
   _renderRunningClock(active) {
-    const modeName = active.mode === 'countup' ? '心流正向计时' : `番茄倒计时 (${active.targetMinutes}m)`;
+    const modeName = active.mode === 'countup' ? '正向计时' : `${active.targetMinutes} 分钟倒计时`;
     const startStr = Utils.formatTime(new Date(active.startTime));
 
     return `
       <div class="focus-running-view">
         <div class="focus-running-meta">
           <span class="focus-running-badge">${modeName}</span>
-          <span class="focus-running-subj">${Utils.esc(active.subject || '自习专注')}</span>
+          <span class="focus-running-subj">${Utils.esc(active.subject || '自习')}</span>
           <span class="focus-running-start">始于 ${startStr}</span>
         </div>
 
         <!-- 环形进度与数字时钟 -->
         <div class="focus-dial-container">
           <div class="focus-dial-display" id="focus-digits">--:--</div>
-          <div class="focus-dial-sub" id="focus-dial-sub">沉浸在当下的专注中…</div>
+          <div class="focus-dial-sub" id="focus-dial-sub">专注进行中</div>
           <div class="focus-progress-bar-wrap ${active.mode === 'countup' ? 'hidden' : ''}">
             <div class="focus-progress-bar" id="focus-progress-bar" style="width: 0%"></div>
           </div>
@@ -559,8 +556,8 @@ const Focus = {
 
         <!-- 按钮区 -->
         <div class="focus-running-actions">
-          <button class="btn btn-primary focus-btn-finish" id="focus-btn-finish">✓ 结束并记录收获</button>
-          <button class="btn btn-secondary focus-btn-cancel" id="focus-btn-cancel">✕ 放弃本次</button>
+          <button class="btn btn-primary focus-btn-finish" id="focus-btn-finish">✓ 完成并留档</button>
+          <button class="btn btn-secondary focus-btn-cancel" id="focus-btn-cancel">✕ 放弃</button>
           <button class="focus-zen-toggle" id="focus-zen-toggle" title="全屏沉浸模式">⛶ 全屏</button>
         </div>
       </div>
@@ -589,7 +586,7 @@ const Focus = {
 
       if (active.mode === 'countup') {
         digitsEl.textContent = this._formatHMS(elapsedSec);
-        if (subEl) subEl.textContent = `心流已持续 ${Math.floor(elapsedSec / 60)} 分钟`;
+        if (subEl) subEl.textContent = `已持续 ${Math.floor(elapsedSec / 60)} 分钟`;
       } else {
         const totalSec = active.targetMinutes * 60;
         const remainSec = Math.max(0, totalSec - elapsedSec);
@@ -603,7 +600,7 @@ const Focus = {
             this._lastChimedSessionId = active.id;
             this.playChime();
           }
-          if (subEl) subEl.textContent = '🎉 番茄钟已敲响！请放松身心，记录这次的收获吧';
+          if (subEl) subEl.textContent = '计时已结束';
         } else {
           if (subEl) subEl.textContent = `剩余 ${Math.ceil(remainSec / 60)} 分钟`;
         }
@@ -620,8 +617,7 @@ const Focus = {
     if (!sessions || sessions.length === 0) {
       return `
         <div class="focus-empty-timeline">
-          <span class="focus-empty-icon">📖</span>
-          <p>还没有专注留档。完成一次专注后，这里会像时光日记一样沉淀下你的每一次努力。</p>
+          <p>暂无专注留档</p>
         </div>
       `;
     }
@@ -657,7 +653,7 @@ const Focus = {
                     <div class="focus-card-time">${startT} ~ ${endT}</div>
                     <div class="focus-card-badge-row">
                       <span class="focus-dur-pill">⏱ ${durM} 分钟</span>
-                      <span class="focus-mode-pill">${s.mode === 'countup' ? '心流' : '番茄'}</span>
+                      <span class="focus-mode-pill">${s.mode === 'countup' ? '正向' : '倒计时'}</span>
                       <span class="focus-subj-pill">${Utils.esc(s.subject || '自习')}</span>
                     </div>
                   </div>

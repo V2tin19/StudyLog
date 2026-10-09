@@ -1235,45 +1235,53 @@
       sessions = Array.isArray(focusDoc.data) ? focusDoc.data : (focusDoc.data.sessions || []);
     }
 
+    var historyHtml = '';
+    if (sessions.length > 0) {
+      historyHtml =
+        '<div class="pub-section" style="margin-top:32px;">' +
+          '<div class="pub-section-title">专注留档</div>' +
+          '<div class="pub-list">' +
+            sessions.slice(0, 20).map(function (s) {
+              var dur = s.durationMinutes || Math.round((s.durationSeconds || 0) / 60) || 1;
+              var mode = s.mode === 'countup' ? '正向' : '倒计时';
+              var sub = s.subject || '自习';
+              var note = s.notes ? ('“' + esc(s.notes) + '”') : '';
+              return '<div class="pub-row">' +
+                '<div class="pub-row-head">' +
+                  '<div class="pub-row-main">' +
+                    '<div class="pub-row-title">' + esc(sub) + '</div>' +
+                    '<div class="pub-row-sub">' + (s.createdAt ? s.createdAt.slice(0, 10) : '') + (note ? ' · ' + note : '') + '</div>' +
+                  '</div>' +
+                  '<div class="pub-row-value">' + dur + ' 分钟</div>' +
+                  '<span class="pub-row-badge">' + mode + '</span>' +
+                '</div>' +
+              '</div>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+    }
+
+    var existingWidget = document.getElementById('pub-focus-widget');
+    if (existingWidget) {
+      var histEl = document.getElementById('pub-focus-history');
+      if (histEl) histEl.innerHTML = historyHtml;
+      return;
+    }
+
     body.innerHTML =
       '<div class="pub-section">' +
-        '<div class="pub-section-title">自习室 · 在线伴读与同频专注</div>' +
-        '<p style="font-size:0.86rem; color:var(--text-secondary); line-height:1.7; margin-bottom:18px;">' +
-          '这里是一间安静的线上自习室。开启专注时，你的座席与专注事项会出现在伴读墙上，与书友同频共读。' +
-        '</p>' +
+        '<div class="pub-section-title">自习室</div>' +
         '<div id="pub-focus-widget"></div>' +
         '<div class="pub-section" style="margin-top:28px;">' +
           '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
-            '<div class="pub-section-title" style="margin-bottom:0;">伴读墙 · 正在自习的书友</div>' +
+            '<div class="pub-section-title" style="margin-bottom:0;">伴读墙</div>' +
             '<button type="button" class="pub-page-btn" id="pub-focus-refresh" style="padding:4px 12px; font-size:0.75rem;">⟳ 刷新</button>' +
           '</div>' +
           '<div class="focus-buddies-list" id="pub-focus-buddies">' +
-            '<div class="focus-buddy-loading">正在读取自习室书友…</div>' +
+            '<div class="focus-buddy-loading">正在读取伴读状态…</div>' +
           '</div>' +
         '</div>' +
-        (sessions.length > 0 ? (
-          '<div class="pub-section" style="margin-top:32px;">' +
-            '<div class="pub-section-title">馆主专注时光留档</div>' +
-            '<div class="pub-list">' +
-              sessions.slice(0, 20).map(function (s) {
-                var dur = s.durationMinutes || Math.round((s.durationSeconds || 0) / 60) || 1;
-                var mode = s.mode === 'countup' ? '心流' : '番茄';
-                var sub = s.subject || '自习专注';
-                var note = s.notes ? ('“' + esc(s.notes) + '”') : '';
-                return '<div class="pub-row">' +
-                  '<div class="pub-row-head">' +
-                    '<div class="pub-row-main">' +
-                      '<div class="pub-row-title">' + esc(sub) + '</div>' +
-                      '<div class="pub-row-sub">' + (s.createdAt ? s.createdAt.slice(0, 10) : '') + (note ? ' · ' + note : '') + '</div>' +
-                    '</div>' +
-                    '<div class="pub-row-value">' + dur + ' 分钟</div>' +
-                    '<span class="pub-row-badge">' + mode + '</span>' +
-                  '</div>' +
-                '</div>';
-              }).join('') +
-            '</div>' +
-          '</div>'
-        ) : '') +
+        '<div id="pub-focus-history">' + historyHtml + '</div>' +
       '</div>';
 
     initPublicFocusWidget();
@@ -1313,13 +1321,13 @@
   }
 
   function renderPublicIdleWidget(container) {
-    var defName = getCommentName() || '书友';
+    var defName = savedName() || '书友';
     container.innerHTML =
       '<div class="focus-clock-card" style="padding:24px 20px;">' +
         '<div class="focus-setup-view">' +
           '<div class="focus-tabs">' +
-            '<button type="button" class="focus-tab active" data-mode="countdown">番茄倒计时</button>' +
-            '<button type="button" class="focus-tab" data-mode="countup">心流正向</button>' +
+            '<button type="button" class="focus-tab active" data-mode="countdown">倒计时</button>' +
+            '<button type="button" class="focus-tab" data-mode="countup">正向计时</button>' +
           '</div>' +
           '<div class="focus-preset-chips" id="pub-focus-chips">' +
             '<button type="button" class="focus-chip" data-min="15">15m</button>' +
@@ -1328,11 +1336,11 @@
             '<button type="button" class="focus-chip" data-min="60">60m</button>' +
           '</div>' +
           '<div style="display:flex; gap:8px; width:100%; max-width:420px; flex-wrap:wrap;">' +
-            '<input type="text" class="input" id="pub-focus-name" value="' + esc(defName) + '" placeholder="你的座席昵称" style="flex:0 0 110px; font-size:0.86rem;" />' +
-            '<input type="text" class="input" id="pub-focus-subj" placeholder="专注主题（如：数学、阅读、刷题）" style="flex:1; min-width:140px; font-size:0.86rem;" />' +
+            '<input type="text" class="input" id="pub-focus-name" value="' + esc(defName) + '" placeholder="座席昵称" style="flex:0 0 110px; font-size:0.86rem;" />' +
+            '<input type="text" class="input" id="pub-focus-subj" placeholder="专注事项（选填）" style="flex:1; min-width:140px; font-size:0.86rem;" />' +
           '</div>' +
           '<button type="button" class="btn btn-primary focus-btn-start" id="pub-focus-start-btn" style="padding:10px 30px; font-size:0.92rem;">' +
-            '▶ 开启自习' +
+            '▶ 开始专注' +
           '</button>' +
         '</div>' +
       '</div>';
@@ -1366,9 +1374,9 @@
         var nameInput = document.getElementById('pub-focus-name');
         var subjInput = document.getElementById('pub-focus-subj');
         var name = (nameInput ? nameInput.value.trim() : '') || '书友';
-        var subj = (subjInput ? subjInput.value.trim() : '') || '自习专注';
+        var subj = (subjInput ? subjInput.value.trim() : '') || '自习';
 
-        saveCommentName(name);
+        rememberName(name);
 
         var session = {
           id: 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -1382,12 +1390,13 @@
         setPubFocusActive(session);
         sendPubPresence(session, 'heartbeat');
         initPublicFocusWidget();
+        loadPublicBuddies();
       };
     }
   }
 
   function renderPublicRunningWidget(container, active) {
-    var modeLabel = active.mode === 'countup' ? '心流模式' : (active.targetMinutes + ' 分钟番茄');
+    var modeLabel = active.mode === 'countup' ? '正向计时' : (active.targetMinutes + ' 分钟倒计时');
     container.innerHTML =
       '<div class="focus-clock-card" style="padding:28px 20px;">' +
         '<div class="focus-running-view">' +
@@ -1397,10 +1406,10 @@
           '</div>' +
           '<div class="focus-dial-container">' +
             '<div class="focus-dial-display" id="pub-focus-digits" style="font-size:3.8rem;">--:--</div>' +
-            '<div class="focus-dial-sub" id="pub-focus-sub">正在安静专注中…</div>' +
+            '<div class="focus-dial-sub" id="pub-focus-sub">专注进行中</div>' +
           '</div>' +
           '<div class="focus-running-actions">' +
-            '<button type="button" class="btn btn-primary" id="pub-focus-stop-btn" style="padding:8px 22px; font-size:0.86rem;">✓ 结束自习</button>' +
+            '<button type="button" class="btn btn-primary" id="pub-focus-stop-btn" style="padding:8px 22px; font-size:0.86rem;">✓ 结束</button>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -1429,7 +1438,7 @@
         var m = Math.floor(elapsedSec / 60);
         var s = elapsedSec % 60;
         digitsEl.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-        if (subEl) subEl.textContent = '已专注 ' + m + ' 分钟';
+        if (subEl) subEl.textContent = '已持续 ' + m + ' 分钟';
       } else {
         var totalSec = act.targetMinutes * 60;
         var remainSec = Math.max(0, totalSec - elapsedSec);
@@ -1438,7 +1447,7 @@
         digitsEl.textContent = String(rm).padStart(2, '0') + ':' + String(rs).padStart(2, '0');
 
         if (remainSec <= 0) {
-          if (subEl) subEl.textContent = '🎉 番茄钟敲响！功不唐捐，请稍事休息';
+          if (subEl) subEl.textContent = '计时已结束';
         } else {
           if (subEl) subEl.textContent = '剩余 ' + Math.ceil(remainSec / 60) + ' 分钟';
         }
@@ -1451,7 +1460,7 @@
     pubPresenceTimer = setInterval(function () {
       var act = getPubFocusActive();
       if (act) sendPubPresence(act, 'heartbeat');
-    }, 30000);
+    }, 25000);
   }
 
   function sendPubPresence(session, action) {
@@ -1482,7 +1491,7 @@
       .then(function (data) {
         var active = (data && Array.isArray(data.active)) ? data.active : [];
         if (active.length === 0) {
-          el.innerHTML = '<div class="focus-buddy-empty">🌱 伴读墙暂时安静，开启一段专注成为第一个自习书友吧</div>';
+          el.innerHTML = '<div class="focus-buddy-empty">暂无在线书友</div>';
           return;
         }
 
@@ -1501,16 +1510,16 @@
                 '<span class="focus-buddy-time">' + mins + 'm</span>' +
               '</div>' +
               '<div class="focus-buddy-sub">' +
-                '<span class="focus-buddy-tag">' + (b.mode === 'countup' ? '心流' : '番茄') + '</span>' +
+                '<span class="focus-buddy-tag">' + (b.mode === 'countup' ? '正向' : '倒计时') + '</span>' +
                 '<span class="focus-buddy-subj">' + esc(b.subject || '自习') + '</span>' +
               '</div>' +
             '</div>' +
-            '<span class="focus-buddy-pulse" title="专注进行中"></span>' +
+            '<span class="focus-buddy-pulse" title="专注中"></span>' +
           '</div>';
         }).join('');
       })
       .catch(function () {
-        el.innerHTML = '<div class="focus-buddy-empty">伴读状态连接中…</div>';
+        el.innerHTML = '<div class="focus-buddy-empty">暂无在线书友</div>';
       });
   }
 
