@@ -1,0 +1,77 @@
+{
+  "master_qq": {
+    "description": "主人的QQ号（逗号分隔，只有这些人能用考研助手）",
+    "type": "string",
+    "default": ""
+  },
+  "groups": {
+    "description": "群聊白名单（逗号分隔群号；留空=只在私聊生效）",
+    "type": "string",
+    "default": ""
+  },
+  "platform_id": {
+    "description": "AstrBot 的 aiocqhttp 平台实例 id（WebUI 平台配置里看到的 id，一般不用改）",
+    "type": "string",
+    "default": "default"
+  },
+  "site_api_base": {
+    "description": "StudyLog 站点地址（如 https://xxx.pages.dev）",
+    "type": "string",
+    "default": ""
+  },
+  "admin_token": {
+    "description": "StudyLog 的 ADMIN_TOKEN（与 Cloudflare Pages 环境变量一致）",
+    "type": "string",
+    "default": ""
+  },
+  "llm_api_base": {
+    "description": "LLM API 地址（OpenAI 兼容，如 https://open.bigmodel.cn/api/paas/v4）",
+    "type": "string",
+    "default": ""
+  },
+  "llm_api_key": {
+    "description": "LLM API Key",
+    "type": "string",
+    "default": ""
+  },
+  "llm_model": {
+    "description": "LLM 模型名（如 glm-4-flash / deepseek-chat）",
+    "type": "string",
+    "default": "glm-4-flash"
+  },
+  "llm_json_mode": {
+    "description": "LLM 请求启用 JSON 模式（GLM/DeepSeek 支持；不支持就关掉）",
+    "type": "bool",
+    "default": true
+  },
+  "push_enabled": {
+    "description": "开启定时推送（每日计划 + 每周总结）",
+    "type": "bool",
+    "default": true
+  },
+  "daily_plan_time": {
+    "description": "每日计划推送时间（HH:MM，按下面时区）",
+    "type": "string",
+    "default": "07:30"
+  },
+  "weekly_report_day": {
+    "description": "周报推送日（monday~sunday）",
+    "type": "string",
+    "default": "sunday"
+  },
+  "weekly_report_time": {
+    "description": "周报推送时间（HH:MM）",
+    "type": "string",
+    "default": "21:00"
+  },
+  "timezone": {
+    "description": "时区（日期解析与定时推送都用它）",
+    "type": "string",
+    "default": "Asia/Shanghai"
+  },
+  "weekly_target_hours": {
+    "description": "每周目标学习小时数（健康分用）",
+    "type": "int",
+    "default": 49
+  }
+}
