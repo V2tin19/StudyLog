@@ -35,6 +35,22 @@
 
 ## 部署步骤
 
+### 方式 A：AstrBot 插件（当前服务器实际在用 ✅）
+
+服务器上已有 AstrBot（`/root/Alice/astrbotA/AstrBot`，systemd 常驻，NapCat 反连 6200），
+插件版复用它的连接：**同一个 QQ 号、零新进程、不碰 NapCat**。
+
+1. `scp -r bot/astrbot_plugin_kaoyan root@服务器:/root/Alice/astrbotA/AstrBot/data/plugins/`
+2. `systemctl restart astrbot`，日志出现 `[kaoyan] 考研插件就绪` 即加载成功
+3. AstrBot WebUI → 插件 → 考研自习助手 → 填配置（`master_qq`、`site_api_base`、
+   `admin_token`、LLM 三项；LLM 可直接复用 AstrBot provider_sources 里的 key）
+4. QQ 私聊 bot「帮助」开测
+
+细节见 `astrbot_plugin_kaoyan/README.md`。配置存于
+`data/config/astrbot_plugin_kaoyan_config.json`，改完在 WebUI 里重载插件生效。
+
+### 方式 B：独立 bot 进程（备用，需单独的 bot QQ 号）
+
 ### 0. 前置
 
 - 一台 Linux 服务器（1核1G 就够，CentOS/Debian/Ubuntu 都行）或常开的自己电脑
