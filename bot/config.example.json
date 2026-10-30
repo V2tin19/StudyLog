@@ -1,0 +1,28 @@
+{
+  "napcat": {
+    "ws_url": "ws://127.0.0.1:3001",
+    "access_token": ""
+  },
+  "master_qq": [10000],
+  "groups": [],
+  "site": {
+    "api_base": "https://your-site.pages.dev",
+    "admin_token": "与 Cloudflare Pages 环境变量 ADMIN_TOKEN 相同的值"
+  },
+  "llm": {
+    "api_base": "https://open.bigmodel.cn/api/paas/v4",
+    "api_key": "你的 LLM API Key",
+    "model": "glm-4-flash",
+    "json_mode": true
+  },
+  "timezone": "Asia/Shanghai",
+  "push": {
+    "enabled": true,
+    "daily_plan_time": "07:30",
+    "weekly_report_day": "sunday",
+    "weekly_report_time": "21:00"
+  },
+  "study": {
+    "weekly_target_hours": 49
+  }
+}
