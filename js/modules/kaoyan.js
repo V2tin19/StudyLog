@@ -159,6 +159,8 @@ const Kaoyan = {
       alert('还没填管理令牌：去「设置」页填入后才能从云端拿计划');
       return;
     }
+    if (this._pulling) return;          /* 防重入：渲染触发的拉取别叠罗汉 */
+    this._pulling = true;
     if (btn) btn.disabled = true;
     try {
       const res = await fetch('/api/admin/kaoyan-plan', {
@@ -166,13 +168,20 @@ const Kaoyan = {
       });
       const data = await Cloud._readJson(res, '读取计划');
       if (data.plan) {
+        const next = JSON.stringify(data.plan);
+        const prev = JSON.stringify(this.getPlan() || {});
         this.setPlan(data.plan);
-        const c = document.getElementById('page-container');
-        if (c && App.currentPage === 'kaoyan') Kaoyan.render(c);
+        /* 内容没变就不重画 —— 否则 render→pull→render 会闪成循环 */
+        if (next !== prev) {
+          const c = document.getElementById('page-container');
+          if (c && App.currentPage === 'kaoyan') Kaoyan.render(c);
+        }
       }
     } catch (err) {
-      alert('拉取计划失败：' + err.message);
+      /* 自动拉取失败保持安静（页面还有本地缓存），手动点按钮才弹窗 */
+      if (btn) alert('拉取计划失败：' + err.message);
     } finally {
+      this._pulling = false;
       if (btn) btn.disabled = false;
     }
   }

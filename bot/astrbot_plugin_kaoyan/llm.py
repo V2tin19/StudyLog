@@ -54,6 +54,26 @@ class LLM:
             await self._session.close()
 
     async def chat(self, messages, max_tokens=1500, temperature=0.4, force_json=False):
+        """裸调用，带一次自动重试。返回助手文本。
+
+        推理型模型走 CLINE 这类网关时偶发「空 content / HTTP 5xx」
+        （推理把 token 预算耗尽或网关抖动），这类错误重试一次通常就好；
+        4xx（余额不足、参数错）重试无意义，直接抛。
+        """
+        for attempt in range(2):
+            try:
+                return await self._chat_once(messages, max_tokens, temperature, force_json)
+            except LLMError as e:
+                msg = str(e)
+                retryable = ('HTTP 5' in msg or '空内容' in msg
+                             or 'empty' in msg.lower() or '超时' in msg)
+                if not retryable or attempt == 1:
+                    raise
+                log.warning('LLM 调用失败（%s），2 秒后重试一次', msg[:120])
+                await asyncio.sleep(2)
+        raise LLMError('unreachable')
+
+    async def _chat_once(self, messages, max_tokens, temperature, force_json):
         """裸调用。返回助手文本。"""
         if not self.api_key or '你的' in self.api_key:
             raise LLMError('config 里还没填 LLM api_key')
@@ -96,7 +116,8 @@ class LLM:
         except (ValueError, KeyError, IndexError):
             raise LLMError(f'LLM 返回结构异常：{text[:200]}')
         if not content or not content.strip():
-            raise LLMError('LLM 返回了空内容')
+            # 推理模型可能把预算全花在思考上，content 为空 —— 当可重试错误抛出
+            raise LLMError('LLM 返回了空内容（推理耗尽 token 或网关超时）')
         return content.strip()
 
     # ---------------- JSON 输出的稳妥解析 ----------------
@@ -150,7 +171,7 @@ class LLM:
             '用户消息里如果根本不是学习相关内容，输出 {"sessions":[]}。\n'
             '只输出 JSON。'
         )
-        data = await self.chat_json(system, text, max_tokens=800)
+        data = await self.chat_json(system, text, max_tokens=1600)
         sessions = data.get('sessions')
         if not isinstance(sessions, list):
             raise LLMError('LLM 抽取结果里没有 sessions 数组')
@@ -189,7 +210,7 @@ class LLM:
             '只输出 JSON。'
         )
         user = f'用户反馈：{feedback}\n\n当天原计划（JSON）：\n{json.dumps(plan_day, ensure_ascii=False)}'
-        return await self.chat_json(system, user, max_tokens=1200)
+        return await self.chat_json(system, user, max_tokens=2400)
 
     # ================= 任务：生成本周计划 =================
 
@@ -249,7 +270,7 @@ class LLM:
             '已知的绝不重复问；用户给了新信息先确认收到。只输出JSON。'
         )
         user = json.dumps({'known': known, '用户最新消息': text}, ensure_ascii=False)
-        return await self.chat_json(system, user, max_tokens=1200)
+        return await self.chat_json(system, user, max_tokens=2400)
 
     # ================= 任务：周报 =================
 
