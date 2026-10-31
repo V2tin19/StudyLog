@@ -134,6 +134,11 @@ class KaoyanPlugin(Star):
         if self.router is None:
             return
 
+        text = event.get_message_str().strip()
+        # 入口日志放所有检查之前（排障第一原则：静默失败查无可查）
+        logger.info(f'[kaoyan] 命中粗筛 umo={event.unified_msg_origin} '
+                    f'sender={event.get_sender_id()} text={text[:24]!r}')
+
         umo = event.unified_msg_origin
         try:
             platform_id, mtype, session_id = umo.split(':', 2)
@@ -144,12 +149,12 @@ class KaoyanPlugin(Star):
 
         # 门禁：私聊只服务 master；群聊只服务白名单群 + @bot + master
         if sender not in self.masters:
+            logger.info(f'[kaoyan] 非master，放行主线 sender={sender}')
             return
-        if is_group:
-            if session_id not in self.groups or not self._at_me(event):
-                return
+        if is_group and (session_id not in self.groups or not self._at_me(event)):
+            logger.info(f'[kaoyan] 群聊拦截（非白名单群或未@bot）session={session_id}')
+            return
 
-        text = event.get_message_str().strip()
         reply = await self.router.handle(text, sender, is_group)
         if not reply:
             return          # 不是考研意图 —— 不产出结果，主线（人格/其他插件）继续
