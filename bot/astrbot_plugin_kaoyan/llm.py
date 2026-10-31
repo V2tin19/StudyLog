@@ -206,6 +206,42 @@ class LLM:
         )
         return await self.chat_json(system, json.dumps(context, ensure_ascii=False), max_tokens=3500)
 
+    # ================= 任务：规划会话（教练式收集信息 → 草图 → 确认） =================
+
+    async def plan_intake(self, known: dict, text: str, now_desc: str, has_plan: bool):
+        """规划对话的单轮推进。
+
+        输入：known=已收集的要素（可能为空），text=用户最新消息。
+        输出（严格JSON）：collected(合并后全部已知) / questions(≤3个) /
+        draft_summary(信息够时的文字版周草图) / ack(对用户说的话) /
+        ready(信息是否够排计划) / confirm_detected(用户是否说了确认类的话)。
+        """
+        system = (
+            '你是考研408备考规划教练，正在和用户对话式制定学习计划。'
+            f'用户站点{"已有计划（可以覆盖重排）" if has_plan else "还没有计划"}。'
+            '现在的准确时间：' + now_desc + '。\n\n'
+            '每轮做三件事：\n'
+            '1. 从用户最新消息里抽取规划要素，与已知合并（用户改口以最新为准）：\n'
+            '   exam_date(考试日期YYYY-MM-DD) / daily_available(每天可用时段，如"晚上7-11，周末全天") /\n'
+            '   wake_sleep(作息) / subjects_priority(科目强弱与优先级) / stage(基础|强化|冲刺) /\n'
+            '   materials(教材网课与当前进度) / weekly_target(每周目标小时数) /\n'
+            '   constraints(其他约束：上课实习等)。抽不到的字段保持原样，绝不编造。\n'
+            '2. 判断信息是否足够排周计划：考试日期、每天可用时段、科目优先级，三者至少有其二，\n'
+            '   且没有明显缺口。够则 ready=true。\n'
+            '3. 输出严格JSON：\n'
+            '{"collected":{...全部已知要素...},\n'
+            ' "ready": false,\n'
+            ' "questions":["最多3个问题，按对排期影响从大到小；没有就[]"],\n'
+            ' "draft_summary":"ready时给文字版周计划草图：周一~周日各天重点科目与时段划分，≤220字；不够则空串",\n'
+            ' "ack":"对用户说的话：确认收到信息+自然地提出questions里的追问，≤100字；"\n'
+            '       "ready时则给出草图并问：就按这个排吗？说「按这个排」我就生成详细计划写进系统",\n'
+            ' "confirm_detected":false}\n'
+            '原则：一次最多问3个、优先问影响时段安排的（考试日期>可用时间>作息>科目强弱）；\n'
+            '已知的绝不重复问；用户给了新信息先确认收到。只输出JSON。'
+        )
+        user = json.dumps({'known': known, '用户最新消息': text}, ensure_ascii=False)
+        return await self.chat_json(system, user, max_tokens=1200)
+
     # ================= 任务：周报 =================
 
     async def weekly_report(self, stats: dict, diary_entries: list):

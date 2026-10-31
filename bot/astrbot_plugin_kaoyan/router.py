@@ -10,6 +10,7 @@
 
 import logging
 import re
+import time
 from collections import deque
 from datetime import date, datetime, timedelta
 
@@ -23,10 +24,13 @@ PLAN_CACHE_TTL = 60          # 秒。查计划别每条消息都打 CF
 
 HELP_TEXT = (
     '📖 考研助手能帮你做这些（直接说人话）：\n'
+    '· 做规划：「我想开始备考408，帮我做规划」→ 教练式对话，\n'
+    '   它会主动问你缺的信息（考试日期/可用时段/薄弱科目…），\n'
+    '   给出草图，你说「按这个排」就生成详细计划（仅私聊）\n'
     '· 记学习：「今天下午学了2小时数据结构，刷了王道课后题」\n'
     '· 查安排：「今天安排」「现在该学什么」「明天计划」\n'
     '· 调状态：「今天状态不好」（私聊生效，按状态降量重排）\n'
-    '· 排计划：「重排本周计划」\n'
+    '· 排计划：「重排本周计划」（直接按近况重排未来7天）\n'
     '· 周总结：「本周总结」\n'
     '· 打卡 / 撤销：「打卡」「撤销刚才那条」\n'
     '· 设考试日期：「考试日期 2026-12-26」'
@@ -47,6 +51,15 @@ CHECKIN_RE = re.compile(r'^打卡$|^打卡了|^补打卡|打个卡')
 EXAM_DATE_RE = re.compile(r'(\d{4})[-年/.](\d{1,2})[-月/.](\d{1,2})')
 HELP_RE = re.compile(r'^帮助$|^菜单$|^功能|^你能干|怎么用|^指令|考研帮助')
 
+# ---- 规划会话（教练式收集信息 → 草图 → 确认生成）----
+PLANNING_START_RE = re.compile(
+    r'备考.{0,10}(计划|规划|安排|开始|怎么)|考研.{0,8}(计划|规划|怎么学|怎么复习|开始)|'
+    r'(学习|复习|备考)计划|排个计划|规划一下|开始备考|准备考研|408.{0,8}(计划|规划|怎么学)'
+)
+PLAN_EXIT_RE = re.compile(r'^(取消|退出|算了|不排了|先不了|取消规划)')
+PLAN_CONFIRM_RE = re.compile(r'按这个排|按这个来|就按这个|按这个|可以了|没问题|定下来|排吧|生成吧|就这样|确认')
+PLAN_TTL = 30 * 60          # 规划会话闲置 30 分钟自动过期
+
 
 class KaoyanRouter:
     def __init__(self, cfg: dict, cf, llm):
@@ -55,6 +68,7 @@ class KaoyanRouter:
         self.llm = llm
         self._recent = {}                      # user_id -> deque[(session_id, 描述)]
         self._plan_cache = (0.0, None)
+        self._planning = {}                    # user_id -> {'ctx': dict, 'ts': monotonic}
 
     # ---------------- 公共小工具 ----------------
 
@@ -103,6 +117,18 @@ class KaoyanRouter:
             return f'⚠️ 考研助手出错了：{e}'
 
     async def _route(self, text: str, user_id: int, is_group: bool) -> str:
+        # ---- 0. 规划会话进行中：整段对话归规划教练管（除非明确退出/看帮助） ----
+        sess = self._planning.get(user_id)
+        if sess:
+            if time.monotonic() - sess['ts'] > PLAN_TTL:
+                self._planning.pop(user_id, None)
+                sess = None
+            elif PLAN_EXIT_RE.search(text):
+                self._planning.pop(user_id, None)
+                return '好的，规划先放一边。想继续随时说「备考规划」。'
+            elif not HELP_RE.search(text):
+                return await self._plan_turn(user_id, text)
+
         # ---- 1. 帮助 ----
         if HELP_RE.search(text):
             return HELP_TEXT
@@ -133,6 +159,10 @@ class KaoyanRouter:
             FEEDBACK_WEAK_RE.search(text) and FEEDBACK_CONTEXT_RE.search(text))
         if feedback_hit and (not is_group or '考研' in text):
             return await self._adjust_day(text)
+
+        # ---- 6.5 启动规划会话（仅私聊；群聊保持只读防抢话） ----
+        if PLANNING_START_RE.search(text) and not is_group:
+            return await self._plan_start(user_id, text)
 
         # ---- 7. 查统计 ----
         if STATS_RE.search(text):
@@ -350,12 +380,18 @@ class KaoyanRouter:
             '每周目标小时': self.target_minutes() // 60,
             '用户附加要求': text,
         }
+        return await self._gen_week_and_write(plan, context)
+
+    async def _gen_week_and_write(self, plan: dict, context: dict) -> str:
+        """gen_week → 本地校验 → 写云端。重排与规划会话确认后的共用出口。"""
+        today = self.now().date()
         result = await self.llm.gen_week(context)
 
         days = result.get('days')
         if not isinstance(days, dict) or not days:
             return '⚠️ AI 没生成出计划，再试一次。'
 
+        week_dates = [today + timedelta(days=i) for i in range(1, 8)]
         want = {d.isoformat() for d in week_dates}
         got = set(days.keys())
         if got != want:
@@ -387,6 +423,83 @@ class KaoyanRouter:
         out.append('')
         out.append('发「今天安排」看今天完整版。')
         return '\n'.join(out)
+
+    # ================= 规划会话（教练式） =================
+
+    async def _plan_start(self, user_id: int, text: str) -> str:
+        plan = await self.get_plan()
+        known = {}
+        if plan.get('examDate'):
+            known['exam_date'] = plan['examDate']       # 系统里已有的不用再问
+        result = await self.llm.plan_intake(known, text, self.now_desc(),
+                                            has_plan=bool(plan.get('days')))
+        collected = result.get('collected')
+        self._planning[user_id] = {
+            'ctx': collected if isinstance(collected, dict) else dict(known),
+            'ts': time.monotonic(),
+        }
+        return self._plan_reply(result)
+
+    async def _plan_turn(self, user_id: int, text: str) -> str:
+        sess = self._planning[user_id]
+        plan = await self.get_plan()
+        result = await self.llm.plan_intake(sess['ctx'], text, self.now_desc(),
+                                            has_plan=bool(plan.get('days')))
+        collected = result.get('collected')
+        if isinstance(collected, dict):
+            sess['ctx'] = collected
+        sess['ts'] = time.monotonic()
+
+        if result.get('confirm_detected') and result.get('ready'):
+            ctx = dict(sess['ctx'])
+            self._planning.pop(user_id, None)
+            return await self._gen_from_context(ctx, text)
+        return self._plan_reply(result)
+
+    def _plan_reply(self, result: dict) -> str:
+        parts = []
+        ack = str(result.get('ack') or '').strip()
+        if ack:
+            parts.append(ack)
+        draft = str(result.get('draft_summary') or '').strip()
+        if draft:
+            parts.append('📋 草图：' + draft)
+        for i, q in enumerate(result.get('questions') or [], 1):
+            parts.append(f'{i}. {q}')
+        return '\n'.join(parts) if parts else '收到。继续说说你的情况（考试日期、每天可用时间、薄弱科目），或说「取消」退出。'
+
+    async def _gen_from_context(self, collected: dict, text: str) -> str:
+        """规划会话确认后：把收集到的要素灌进 gen_week，生成并写入。"""
+        today = self.now().date()
+        plan = await self.get_plan()
+        sessions, checkin = await self.cf.get_sessions(days=8)
+        stats = planner.week_stats(sessions, checkin, plan, today, self.target_minutes())
+
+        exam = str(collected.get('exam_date') or plan.get('examDate') or '')
+        week_dates = [today + timedelta(days=i) for i in range(1, 8)]
+        context = {
+            '今天': self.now_desc(),
+            '考试日期': exam,
+            '考试倒计时': planner.countdown_text({'examDate': exam}, today) or '未设置考试日期',
+            '未来7天日期列表': [d.isoformat() for d in week_dates],
+            '未来7天星期': [planner.WEEKDAY_CN[d.weekday()] for d in week_dates],
+            '最近7天各科目时长': stats['by_subject'],
+            '最近7天总时长': planner.fmt_minutes(stats['total_minutes']),
+            '最近7天学习天数': f'{stats["active_days"]}/7',
+            '每周目标小时': self.target_minutes() // 60,
+            '用户规划对话收集到的信息': collected,
+            '用户附加要求': text,
+        }
+        if exam and re.match(r'^\d{4}-\d{2}-\d{2}$', exam):
+            plan['examDate'] = exam
+        reply = await self._gen_week_and_write(plan, context)
+        # 会话上下文存进计划，方便以后追溯这次是按什么信息排的
+        try:
+            plan['planningContext'] = collected
+            await self.cf.put_plan(plan)
+        except Exception:
+            pass
+        return reply
 
     # ================= 周报 =================
 
