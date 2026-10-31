@@ -8,17 +8,21 @@
 3. 日期铁律不变：所有日期由 nlu.resolve_day_token 在代码里解析。
 """
 
-import logging
 import re
 import time
 from collections import deque
 from datetime import date, datetime, timedelta
 
+try:
+    # AstrBot 环境：用插件的专属 logger（带 plugin_tag，主进程日志器认它）
+    from astrbot.api import logger
+except ImportError:          # 独立测试环境兜底
+    import logging
+    logger = logging.getLogger('kaoyan.router')
+
 from . import nlu
 from . import planner
 from .llm import LLMError
-
-logger = logging.getLogger('astrbot.plugin.kaoyan')
 
 PLAN_CACHE_TTL = 60          # 秒。查计划别每条消息都打 CF
 
