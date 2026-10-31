@@ -24,20 +24,25 @@
     "type": "string",
     "default": ""
   },
+  "llm_provider_id": {
+    "description": "引用 AstrBot 模型提供商：填「模型提供商」页里条目的 id（如 CLINE/cline-pass/deepseek-v4.1-flash）。填了就用它的 key/base/model（WebUI 改 key 自动跟随），下面三项留空即可",
+    "type": "string",
+    "default": ""
+  },
   "llm_api_base": {
-    "description": "LLM API 地址（OpenAI 兼容，如 https://open.bigmodel.cn/api/paas/v4）",
+    "description": "LLM API 地址（OpenAI 兼容，如 https://open.bigmodel.cn/api/paas/v4）。仅当上面没引用提供商时生效",
     "type": "string",
     "default": ""
   },
   "llm_api_key": {
-    "description": "LLM API Key",
+    "description": "LLM API Key。仅当上面没引用提供商时生效",
     "type": "string",
     "default": ""
   },
   "llm_model": {
-    "description": "LLM 模型名（如 glm-4-flash / deepseek-chat）",
+    "description": "LLM 模型名。仅当上面没引用提供商时生效",
     "type": "string",
-    "default": "glm-4-flash"
+    "default": ""
   },
   "llm_json_mode": {
     "description": "LLM 请求启用 JSON 模式（GLM/DeepSeek 支持；不支持就关掉）",

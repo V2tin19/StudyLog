@@ -83,7 +83,16 @@ class LLM:
             raise LLMError(f'LLM 接口报错（HTTP {resp.status}）：{text[:200]}')
         try:
             data = json.loads(text)
+            # CLINE 等网关会把标准响应包一层 {"success":..,"data":{...}}，解开
+            if isinstance(data, dict) and 'choices' not in data and isinstance(data.get('data'), dict):
+                if data.get('error'):
+                    raise LLMError(f'LLM 网关报错：{data["error"]}')
+                data = data['data']
+            if isinstance(data, dict) and data.get('error') and 'choices' not in data:
+                raise LLMError(f'LLM 网关报错：{data["error"]}')
             content = data['choices'][0]['message']['content']
+        except LLMError:
+            raise
         except (ValueError, KeyError, IndexError):
             raise LLMError(f'LLM 返回结构异常：{text[:200]}')
         if not content or not content.strip():

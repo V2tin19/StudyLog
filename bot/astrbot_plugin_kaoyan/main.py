@@ -59,9 +59,20 @@ class KaoyanPlugin(Star):
 
         api_base = str(config.get('site_api_base', '') or '').strip()
         admin_token = str(config.get('admin_token', '') or '').strip()
-        llm_base = str(config.get('llm_api_base', '') or '').strip()
-        llm_key = str(config.get('llm_api_key', '') or '').strip()
-        llm_model = str(config.get('llm_model', '') or '').strip()
+
+        # LLM 配置：优先引用 AstrBot 的模型提供商（WebUI 里改 key 自动跟随），
+        # 引用不到或没填 id 时回退到手动填的 base/key/model
+        provider_id = str(config.get('llm_provider_id', '') or '').strip()
+        resolved = self._resolve_llm_from_astrbot(provider_id) if provider_id else None
+        if resolved:
+            llm_base, llm_key, llm_model = resolved
+            logger.info(f'[kaoyan] LLM 引用 AstrBot 提供商 {provider_id}（model={llm_model}）')
+        else:
+            llm_base = str(config.get('llm_api_base', '') or '').strip()
+            llm_key = str(config.get('llm_api_key', '') or '').strip()
+            llm_model = str(config.get('llm_model', '') or '').strip()
+            if provider_id:
+                logger.warning(f'[kaoyan] 引用不到 AstrBot 提供商 {provider_id}（或字段不全），回退手动 LLM 配置')
 
         self.cf = CFStore(api_base, admin_token) if api_base and admin_token else None
         self.llm = LLM(llm_base, llm_key, llm_model,
@@ -76,6 +87,31 @@ class KaoyanPlugin(Star):
         if self.router is None:
             logger.warning('[kaoyan] 配置不完整（site_api_base / admin_token / llm_*），'
                            '插件已加载但不会处理消息。请在 WebUI 插件配置里补全。')
+
+    def _resolve_llm_from_astrbot(self, provider_id: str):
+        """从 AstrBot 的模型提供商配置解析 (base, key, model)。
+
+        provider_id 就是 WebUI「模型提供商」页里条目的 id（形如 CLINE/cline-pass/deepseek-v4.1-flash）。
+        merged=True 会把 provider 绑定的 source（含 key）合并进来，key 已解环境变量。
+        """
+        pm = getattr(self.context, 'provider_manager', None)
+        if pm is None:
+            return None
+        try:
+            cfg = pm.get_provider_config_by_id(provider_id, merged=True)
+        except Exception as e:
+            logger.warning(f'[kaoyan] 读取提供商 {provider_id} 配置失败：{e}')
+            return None
+        if not cfg:
+            return None
+        key = cfg.get('key')
+        if isinstance(key, (list, tuple)):
+            key = next((k for k in key if k), '')
+        base = cfg.get('api_base') or cfg.get('base_url') or ''
+        model = cfg.get('model') or (cfg.get('model_config') or {}).get('model') or ''
+        if not (key and base and model):
+            return None
+        return str(base).rstrip('/'), str(key), str(model)
 
     # ---------------- 生命周期 ----------------
 
