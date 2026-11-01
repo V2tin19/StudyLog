@@ -49,31 +49,18 @@ StudyLog/
 │       ├── study.js        # 学习 / 任务 / 书籍 / 技能 / 计时
 │       ├── dashboard.js    # 仪表盘数据聚合 / 图表渲染
 │       ├── extras.js       # 日程表 / 目标清单
-│       ├── kaoyan.js       # 考研页（今日计划 / 倒计时 / 最近七天）
 │       ├── settings.js     # 主题 / 备份 / 数据管理 / 云端同步入口
 │       ├── cloud.js        # 云端请求封装（令牌校验、读写接口）
 │       └── sync.js         # 自动同步（打开拉取、保存即上传、失败重试）
 │
-├── functions/              # Cloudflare Pages Functions（后端）
-│   └── api/
-│       ├── _shared.js          # 后端公共工具
-│       ├── diary/
-│       │   ├── index.js        # GET  /api/diary        公开读列表
-│       │   └── [date].js       # GET  /api/diary/:date  公开读单篇
-│       └── admin/
-│           ├── diary.js        # 写入接口（校验令牌，唯一真正的权限关卡）
-│           ├── doc.js          # 展示型数据读写（study/schedule/goals/focus/kaoyan）
-│           ├── kaoyan-plan.js  # 考研计划读写（QQ bot / 外部 AI agent 的修改入口）
-│           └── study-session.js# 学习记录服务端合并写 + 打卡（bot 用）
-│
-└── bot/                    # 考研 QQ Bot（跑在自己的服务器上，见 bot/README.md）
-    ├── main.py             # 入口：NapCat 连接 + 定时推送
-    ├── handlers.py         # 意图路由（录入/查计划/调状态/周报）
-    ├── nlu.py              # 日期解析 + 自然语言录入快车道（47 个用例）
-    ├── llm.py              # LLM 客户端（OpenAI 兼容）
-    ├── planner.py          # 计划模型 / 统计 / 健康分
-    ├── napcat.py           # NapCat(OneBot v11) WebSocket 客户端
-    └── cfstore.py          # Cloudflare API 客户端
+└── functions/              # Cloudflare Pages Functions（后端）
+    └── api/
+        ├── _shared.js          # 后端公共工具
+        ├── diary/
+        │   ├── index.js        # GET  /api/diary        公开读列表
+        │   └── [date].js       # GET  /api/diary/:date  公开读单篇
+        └── admin/
+            └── diary.js        # 写入接口（校验令牌，唯一真正的权限关卡）
 ```
 
 ---
@@ -97,12 +84,6 @@ StudyLog/
 **只使用纯本地版** 不绑定 D1 也能部署，写作台照常可用，只是公开页读不到数据。
 
 **其他静态平台**（GitHub Pages / Vercel / Netlify / Nginx）：`write.html` 写作台能正常工作，但公开页与 `/api/*` 依赖 Cloudflare Pages Functions，在这些平台上不可用。
-
----
-
-## 考研 Bot（QQ）
-
-写作台之外，这个项目还带一个跑在自己服务器上的考研备考 QQ bot：在 QQ 里说「今天下午学了2小时数据结构」就能记录（日期由代码解析，当天的记当天），「今天状态不好」AI 就重排计划，「本周总结」出周报和健康分，每天早上自动推当日安排、周日晚自动推总结。数据与写作台「考研」页同源（D1），bot 与外部 AI agent 的接口说明见 **[bot/README.md](bot/README.md)**。
 
 ---
 
