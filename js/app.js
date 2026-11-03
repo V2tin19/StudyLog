@@ -12,6 +12,7 @@ const App = {
 
   pages: {
     timeline: { title: '时间线', render: (c) => Timeline.render(c) },
+    agent: { title: '助手', render: (c) => Agent.render(c) },
     dashboard: { title: '仪表盘', render: (c) => Dashboard.render(c) },
     diary: { title: '日记', render: (c) => Diary.renderDiaryPage(c) },
     study: { title: '阅读', render: (c) => Study.renderStudyPage(c) },

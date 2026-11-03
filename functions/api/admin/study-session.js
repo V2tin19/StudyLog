@@ -34,7 +34,8 @@ function shanghaiToday() {
   return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-function parseStudyDoc(payload) {
+/* agent 大脑（functions/api/agent/_agent.js）复用同一套规整规则，保证两条写入通道同构 */
+export function parseStudyDoc(payload) {
   try {
     const data = JSON.parse(payload || 'null');
     if (data && typeof data === 'object') {
@@ -51,7 +52,7 @@ function parseStudyDoc(payload) {
 }
 
 /* 校验 + 规整一条 session。返回 {session} 或 {error} */
-function normalizeSession(raw, todayStr) {
+export function normalizeSession(raw, todayStr) {
   if (!raw || typeof raw !== 'object') return { error: '记录格式不对' };
 
   const subject = String(raw.subject || '').trim().slice(0, MAX_SUBJECT);
@@ -66,17 +67,18 @@ function normalizeSession(raw, todayStr) {
   if (date > todayStr) return { error: `不能记录未来的日期（${date} > 今天 ${todayStr}）` };
 
   /* 与前端 Store.addItem 生成的字段保持同构，网页端才能无缝展示 */
-  return {
-    session: {
-      id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-      subject,
-      duration,
-      content,
-      date,
-      createdAt: new Date().toISOString(),
-      source: 'bot'          /* 标一下来源，网页统计想区分时可用 */
-    }
+  const session = {
+    id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    subject,
+    duration,
+    content,
+    date,
+    createdAt: new Date().toISOString(),
+    source: 'bot'          /* 标一下来源，网页统计想区分时可用 */
   };
+  /* agent 排期的时间块会带 task_id（弹性任务溯源），有就带上 */
+  if (raw.task_id) session.task_id = String(raw.task_id).slice(0, 64);
+  return { session };
 }
 
 /* ---------------- GET：最近 N 天 ---------------- */
