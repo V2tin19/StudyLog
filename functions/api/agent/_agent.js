@@ -924,6 +924,83 @@ function _tomorrowN(today, n) {
   return new Date(t * 86400000).toISOString().slice(0, 10);
 }
 
+/* ================= 主动通知的文案生成（cron 接口调用，pusher 只管发） ================= */
+
+/** 晨报 07:30：昨天时长 + 今日安排 + 倒计时。今天没安排时返回 ''（不发）。 */
+export async function morningBriefText(env) {
+  const ctx = await loadContext(env);
+  const { slots, note } = day_plan(ctx.plan, ctx.today);
+  if (!slots.length) return '';
+  const yesterday = _yesterday(ctx.today);
+  const yTotal = (ctx.study.sessions || [])
+    .filter(s => s && s.date === yesterday)
+    .reduce((a, s) => a + (s.duration || 0), 0);
+  const lines = [];
+  if (yTotal) lines.push(`昨天学了 ${fmt_minutes(yTotal)}，保持住 💪`);
+  const cd = countdown_text(ctx.plan, ctx.today);
+  if (cd) lines.push(cd);
+  lines.push('☀️ 今天的安排：');
+  lines.push(render_day(ctx.today, slots, note));
+  return lines.join('\n');
+}
+
+/** 午间查岗 12:30：今天已学 + 下午剩余时段。 */
+export async function middayNudgeText(env) {
+  const ctx = await loadContext(env);
+  const { slots } = day_plan(ctx.plan, ctx.today);
+  if (!slots.length) return '';
+  const todayMin = (ctx.study.sessions || [])
+    .filter(s => s && s.date === ctx.today)
+    .reduce((a, s) => a + (s.duration || 0), 0);
+  const upcoming = slots
+    .filter(s => s && typeof s === 'object' && !['休息', '锻炼'].includes(String(s.subject))
+      && String(s.end || '99:99') > ctx.hhmm);
+  let text = `🌤 中午好。今天已学 ${fmt_minutes(todayMin)}`;
+  if (upcoming.length) {
+    text += `，下午还有 ${upcoming.length} 个时段（${[...new Set(upcoming.map(s => s.subject))].join('、')}）`;
+  } else {
+    text += '，下午没排时段 —— 说一句「今天学数学一小时」就能补上';
+  }
+  return text + '。';
+}
+
+/** 晚间催日志 21:30：今天已学 + 没动的块 + 引导一句话写日志。 */
+export async function eveningNudgeText(env) {
+  const ctx = await loadContext(env);
+  const todayMin = (ctx.study.sessions || [])
+    .filter(s => s && s.date === ctx.today)
+    .reduce((a, s) => a + (s.duration || 0), 0);
+
+  const { data: logsData } = await readDoc(env, 'agent_logs');
+  const logs = logsData && typeof logsData === 'object' && typeof logsData.logs === 'object' ? logsData.logs : {};
+  const hasLog = !!logs[ctx.today];
+
+  const { slots } = day_plan(ctx.plan, ctx.today);
+  const subjectsToday = new Set((ctx.study.sessions || [])
+    .filter(s => s && s.date === ctx.today).map(s => s.subject));
+  const untouched = slots
+    .filter(s => s && typeof s === 'object' && !['休息', '锻炼'].includes(String(s.subject))
+      && String(s.end || '99:99') <= ctx.hhmm
+      && !subjectsToday.has(String(s.subject)));
+
+  let text = `🌙 今天已学 ${fmt_minutes(todayMin)}`;
+  if (untouched.length) {
+    text += `，有 ${untouched.length} 个时段（${[...new Set(untouched.map(s => s.subject))].join('、')}）还没动`;
+  }
+  if (hasLog) {
+    text += '。日志已写好，早点休息 💤';
+  } else {
+    text += '。说一句今天的情况，我帮你写进日志（例：「写日志：数学卡壳了，状态一般」）。';
+  }
+  return text;
+}
+
+/** 周报文本（weekly cron + 「本周总结」共用） */
+export async function weeklyReportText(env) {
+  const ctx = await loadContext(env);
+  return _weeklyReport(env, ctx);
+}
+
 /* ================= 周报（数据代码算，LLM 只负责说话） ================= */
 
 async function _weeklyReport(env, ctx) {

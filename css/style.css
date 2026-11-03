@@ -1871,3 +1871,23 @@ tr:hover td { background: var(--bg-hover); }
 }
 
 .agent-input-row .input { flex: 1; min-width: 0; }
+
+/* 站内通知铃铛（agent 主动通知） */
+.notif-bell { position: relative; font-size: 1.05rem; line-height: 1; }
+
+.notif-badge {
+  display: none;
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent-red);
+  color: var(--text-inverse);
+  font-size: 0.64rem;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}

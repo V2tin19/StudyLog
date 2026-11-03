@@ -1,0 +1,18 @@
+{
+  "cf_base": "https://studylog-eo0.pages.dev",
+  "admin_token": "在 Cloudflare Pages 环境变量里的 ADMIN_TOKEN，复制到这里（权限 600，别进 git）",
+  "master_qq": [3937140601],
+  "napcat_ws": "ws://127.0.0.1:3001",
+  "napcat_http": "",
+  "napcat_token": "",
+  "push_times": {
+    "brief": "07:30",
+    "midday": "12:30",
+    "evening": "21:30",
+    "weekly": "21:00",
+    "learn": "23:50"
+  },
+  "weekly_day": 6,
+  "poll_interval": 30,
+  "timezone": "Asia/Shanghai"
+}

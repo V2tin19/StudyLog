@@ -8,6 +8,8 @@
      历史存在云端 doc 的 agent_chat key —— 多端看到同一条对话流。
    · 仪表盘读本地缓存（Study 会话 + Kaoyan 计划），确认录入后
      拉一次 Sync.pull() 让台账缓存跟上，再重画。
+   · 通知走 /api/admin/agent/outbox：铃铛 60s 轮询未读数，
+     QQ 端由服务器上的 pusher 轮询发送。
    ============================================ */
 
 const Agent = {
@@ -15,10 +17,73 @@ const Agent = {
 
   get hasToken() { return !!Cloud.getToken(); },
 
+  /* ============ 站内通知（铃铛 + 通知卡） ============ */
+
+  _startBellPoll() {
+    this._pollBell();
+    setInterval(() => this._pollBell(), 60000);
+  },
+
+  async _pollBell() {
+    if (!this.hasToken) return;
+    try {
+      const res = await fetch('/api/admin/agent/outbox?unread=1&take=20', {
+        headers: { authorization: 'Bearer ' + Cloud.getToken() }
+      });
+      const data = await Cloud._readJson(res, '读取通知');
+      const bell = document.getElementById('notif-bell');
+      const badge = document.getElementById('notif-badge');
+      if (!bell || !badge) return;
+      const n = data.unread || 0;
+      bell.style.display = n > 0 ? '' : 'none';
+      badge.style.display = n > 0 ? '' : 'none';
+      badge.textContent = n > 99 ? '99+' : String(n);
+      this._unreadItems = data.items || [];
+      if (App.currentPage === 'agent') this._renderNotifs();
+    } catch { /* 静默：铃铛不弹错 */ }
+  },
+
+  _renderNotifs() {
+    const wrap = document.getElementById('agent-notifs');
+    if (!wrap) return;
+    const items = this._unreadItems || [];
+    if (!items.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    document.getElementById('agent-notif-list').innerHTML = items.map(i => `
+      <div class="list-item">
+        <div class="list-item-main">
+          <div class="list-item-title">${this._notifTitle(i.kind)}</div>
+          <div class="list-item-sub" style="white-space:pre-wrap;">${Utils.esc(i.text)}</div>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="Agent.markNotifRead('${Utils.esc(i.id)}')">已读</button>
+      </div>`).join('');
+  },
+
+  _notifTitle(kind) {
+    return { brief: '☀️ 晨报', midday: '🌤 午间提醒', evening: '🌙 晚间提醒', weekly: '📊 周报', note: '🔔 通知' }[kind] || '🔔 通知';
+  },
+
+  async markNotifRead(id) {
+    try {
+      const res = await fetch('/api/admin/agent/outbox', {
+        method: 'PATCH',
+        headers: { authorization: 'Bearer ' + Cloud.getToken(), 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [id], read: true })
+      });
+      await Cloud._readJson(res, '标记已读');
+      await this._pollBell();
+    } catch (err) { alert('标记失败：' + err.message); }
+  },
+
   /* ============ 页面骨架 ============ */
   render(container) {
     container.innerHTML = `
       <div id="agent-dash">${this._dashHtml()}</div>
+
+      <div class="card mb-16" id="agent-notifs" style="display:none;">
+        <div class="card-title"><span>通知</span></div>
+        <div id="agent-notif-list"></div>
+      </div>
 
       <div class="card mb-16">
         <div class="card-title"><span>对话</span>
@@ -51,6 +116,8 @@ const Agent = {
 
     this.loadHistory();
     this.loadTasks();
+    this._renderNotifs();
+    this._pollBell();
     /* 计划后台拉新，拉到就重画仪表盘（不重画对话，避免打断） */
     if (this.hasToken && typeof Kaoyan !== 'undefined') {
       Kaoyan.pullPlan().then(() => this._refreshDash()).catch(() => {});
@@ -326,3 +393,8 @@ const Agent = {
     el.querySelectorAll('button').forEach(b => { b.disabled = lock; });
   }
 };
+
+/* ---- 应用启动：铃铛轮询全局起（不依赖当前在助手页） ---- */
+document.addEventListener('DOMContentLoaded', () => {
+  Agent._startBellPoll();
+});
