@@ -230,7 +230,7 @@ const _LEADING_VERBS = ['复习了一遍', '复习了', '复习', '学了一遍'
   '背了', '背', '看了', '看', '做了', '做', '练了', '练', '过了', '过了一遍',
   '过了一遍', '写了', '写', '整理了', '整理', '过了一轮', '预习了', '预习'];
 
-function _match_duration(text) {
+export function _match_duration(text) {
   /* 从文本里找时长（分钟）和它占用的原文片段。返回 { minutes, span } 或 null */
   const patterns = [
     /* 一个半小时 / 1个半小时 / 两小时半 / 半小时（兜底单独列在后面） */
@@ -253,7 +253,7 @@ function _match_duration(text) {
   return null;
 }
 
-function _match_subject(text) {
+export function _match_subject(text) {
   /* 找科目。返回 { subject, span } 或 null */
   let best = null;
   for (const [syn, canon] of _ALL_SYNONYMS) {

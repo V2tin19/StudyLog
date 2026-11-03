@@ -13,10 +13,11 @@
  * LLM 只产出 day 标记。
  */
 
-import { try_parse_log, resolve_day_token, shanghaiToday, shanghaiNowHHMM, weekdayPy } from './_nlu.js';
+import { try_parse_log, resolve_day_token, shanghaiToday, shanghaiNowHHMM, weekdayPy, _match_duration, _match_subject } from './_nlu.js';
 import {
   WEEKDAY_CN, day_plan, render_day, countdown_text, week_stats, fmt_minutes
 } from './_stats.js';
+import { allocateDay, resolve_plan_day, extract_plan_day } from './_scheduler.js';
 import { readDoc, writeDoc, newId, nowIso } from './_store.js';
 import { llmChat, llmChatJson, LLMError } from '../_llm.js';
 import { normalizeSession, parseStudyDoc } from '../admin/study-session.js';
@@ -138,9 +139,27 @@ export async function undoLast(env) {
       const { data: plan } = await readDoc(env, 'kaoyan');
       const p = plan || {};
       p.days = p.days || {};
-      if (entry.undo.slots === null) delete p.days[entry.undo.date];
+      if (!entry.undo.hadDay) delete p.days[entry.undo.date];
       else p.days[entry.undo.date] = { slots: entry.undo.slots, note: entry.undo.note || '' };
       await writeDoc(env, 'kaoyan', p);
+    } else if (entry.kind === 'plan_week') {
+      const { data: plan } = await readDoc(env, 'kaoyan');
+      const p = plan || {};
+      p.days = p.days || {};
+      for (const d of entry.undo.dates || []) {
+        const snap = entry.undo.days && entry.undo.days[d];
+        if (!snap) delete p.days[d];
+        else p.days[d] = { slots: snap.slots, note: snap.note || '' };
+      }
+      if (entry.undo.template !== null && entry.undo.template !== undefined) {
+        p.template = entry.undo.template;
+      }
+      await writeDoc(env, 'kaoyan', p);
+    } else if (entry.kind === 'task_create') {
+      const { data: doc } = await readDoc(env, 'agent_tasks');
+      const td = doc && typeof doc === 'object' ? doc : {};
+      td.tasks = (Array.isArray(td.tasks) ? td.tasks : []).filter(t => t.id !== entry.undo.taskId);
+      await writeDoc(env, 'agent_tasks', td);
     } else {
       return '这条操作类型不支持撤销。';
     }
@@ -236,13 +255,28 @@ async function _route(env, text, source) {
     return finish(await _adjustDay(env, ctx, text));
   }
 
-  /* ---- 7. 排期请求：「今天学数学两小时」（M2） ---- */
+  /* ---- 7. 弹性任务：「每天背半小时单词」（卡片确认） ----
+     放在排期之前：「每天/每周」是强任务信号，别被排期抢走。 */
+  const taskReq = _matchTaskRequest(text);
+  if (taskReq) {
+    const id = 'c_' + newId();
+    doc.pending[id] = { type: 'task_confirm', payload: taskReq, ts: Date.now() };
+    await saveChatDoc(env, doc);
+    const t = taskReq.task;
+    const cycleCn = t.cycle === 'weekly' ? '每周' : '每天';
+    return finish(
+      `帮你立个弹性任务：${cycleCn} ${t.name}（${t.subject}）目标 ${fmt_minutes(t.targetMinutes)}，确认后生效：`,
+      [{ id, type: 'task_confirm', title: '立个任务？', payload: taskReq, actions: ['confirm', 'cancel'], confirmText: '确立', cancelText: '算了' }]
+    );
+  }
+
+  /* ---- 8. 排期请求：「今天学数学两小时」（自动应用，可撤销） ---- */
   const scheduleReq = _matchScheduleRequest(text);
   if (scheduleReq) {
     return finish(await _scheduleFromRequest(env, ctx, text, scheduleReq));
   }
 
-  /* ---- 8. 学习记录：正则快车道 ----
+  /* ---- 9. 学习记录：正则快车道 ----
      放在模糊意图（统计/查计划）之前 —— bot 旧版把 STATS_RE 排在前面，
      「今天下午学了2小时数据结构」会被「今天+下午+学了」截走当统计查询。
      快车道精度高（必须有时长 + 科目/学习动词），先试它不会误伤。 */
@@ -349,6 +383,21 @@ export async function confirmCard(env, cardId, override = null) {
     });
     const total = saved.reduce((a, s) => a + (s.duration || 0), 0);
     let reply = lines.join('\n') + `\n共 ${saved.length} 条，合计 ${fmt_minutes(total)}`;
+    doc.messages.push({ role: 'agent', text: reply, ts: nowIso(), cards: [] });
+    await saveChatDoc(env, doc);
+    return { reply, cards: [] };
+  }
+
+  if (card.type === 'task_confirm') {
+    const t = (override && override.task) ? override.task : card.payload.task;
+    const created = await createTask(env, t);
+    await pushUndo(env, {
+      kind: 'task_create',
+      label: `任务「${created.name}」`,
+      undo: { taskId: created.id }
+    });
+    const cycleCn = created.cycle === 'weekly' ? '每周' : created.cycle === 'total' ? '累计' : '每天';
+    const reply = `✅ 任务已立：${cycleCn} ${created.name}（${created.subject}）目标 ${fmt_minutes(created.targetMinutes)}。\n说「今天学${created.subject}半小时」这类话，AI 会把它排进时间块；完成了就正常记一笔，进度条会走。`;
     doc.messages.push({ role: 'agent', text: reply, ts: nowIso(), cards: [] });
     await saveChatDoc(env, doc);
     return { reply, cards: [] };
@@ -489,24 +538,339 @@ function chatReplySystem(context) {
     + `用户近况：${context}`;
 }
 
-/* ================= M2/M3 占位（下一个里程碑填充） ================= */
+/* ================= 排期（自动应用 + 可撤销） ================= */
 
-async function _regenWeek(env, ctx, text) {
-  return '🛠 「重排本周计划」还在装修中，马上就来。';
+/** 校验时段数组，返回错误文案或 ''（与 kaoyan-plan.js 同一套规则） */
+function validateSlots(slots) {
+  if (!Array.isArray(slots) || !slots.length) return '时段为空';
+  const parsed = [];
+  for (let i = 0; i < slots.length; i++) {
+    const s = slots[i];
+    if (!s || typeof s !== 'object') return `第${i + 1}项不是对象`;
+    const st = String(s.start || ''), en = String(s.end || '');
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(st)) return `第${i + 1}项开始时间 ${st} 不合法`;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(en)) return `第${i + 1}项结束时间 ${en} 不合法`;
+    const [sh, sm] = st.split(':').map(Number);
+    const [eh, em] = en.split(':').map(Number);
+    if (eh * 60 + em <= sh * 60 + sm) return `第${i + 1}项结束要晚于开始`;
+    if (!String(s.subject || '').trim()) return `第${i + 1}项缺科目`;
+    parsed.push([sh * 60 + sm, eh * 60 + em]);
+  }
+  parsed.sort((a, b) => a[0] - b[0]);
+  for (let i = 1; i < parsed.length; i++) {
+    if (parsed[i][0] < parsed[i - 1][1]) {
+      return `时段 ${fmtHM(parsed[i][0])} 与上一段重叠`;
+    }
+  }
+  return '';
 }
 
-async function _adjustDay(env, ctx, text) {
-  return '🛠 按状态调整还在装修中，马上就来。先说一句「今天学了多久」看看数据。';
+function fmtHM(min) {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 }
 
+/**
+ * 排期核心：给定日期 + 分配清单 → 引擎计算 → 校验 → 写入 kaoyan plan → 快照入撤销栈。
+ * 返回 { ok, newSlots, daySlots, note, unplaced } 或 { error }。
+ */
+export async function applySchedule(env, { date, allocations, source = 'chat' }) {
+  const ctx = await loadContext(env);
+  const today = ctx.today;
+
+  const r = resolve_plan_day(date, today);
+  if (r.date === null) return { error: r.note };
+  const target = r.date;
+
+  /* 分配清单里带 subject 的，顺手挂到同名弹性任务上（进度条要靠 task_id 汇总） */
+  const { data: tasksDoc } = await readDoc(env, 'agent_tasks');
+  const tasks = (tasksDoc && Array.isArray(tasksDoc.tasks)) ? tasksDoc.tasks : [];
+  for (const a of allocations) {
+    if (a.taskId) continue;
+    const hit = tasks.find(t => !t.archived && t.subject
+      && (t.subject === a.subject || (Array.isArray(t.aliases) && t.aliases.includes(a.subject))
+        || t.name === a.subject));
+    if (hit) a.taskId = hit.id;
+  }
+
+  const { slots: existing, note: existingNote } = day_plan(ctx.plan, target);
+  const res = allocateDay({
+    date: target,
+    existingSlots: existing,
+    allocations,
+    profile: ctx.profile,
+    nowHHMM: target === today ? ctx.hhmm : null
+  });
+  if (!res.slots.length) {
+    return { error: target === today
+      ? '今天已经没有空档了（可能排满了，或者已过睡觉点）。可以对 bot 说「今天状态不好」重排，或者排到明天。'
+      : '这天已经排满了。' };
+  }
+
+  const merged = [...existing, ...res.slots];
+  const err = validateSlots(merged);
+  if (err) return { error: `排出的时段有问题（${err}），没有写入` };
+
+  /* 快照入撤销栈（days 里没有这天的记录时，撤销 = 删掉这条覆盖） */
+  const hadDay = !!(ctx.plan.days && ctx.plan.days[target]);
+  await pushUndo(env, {
+    kind: 'plan_day',
+    label: `${target} 的排期（${res.slots.length} 块）`,
+    undo: { date: target, hadDay, slots: existing, note: existingNote }
+  });
+
+  const plan = { ...(ctx.plan || {}) };
+  plan.days = plan.days || {};
+  plan.days[target] = { slots: merged, note: existingNote };
+  await writeDoc(env, 'kaoyan', plan);
+
+  return { ok: true, newSlots: res.slots, daySlots: merged, note: existingNote, unplaced: res.unplaced, date: target };
+}
+
+/** 「今天学数学两小时」→ 排期请求。返回 { minutes, subject, dayToken } 或 null。 */
 function _matchScheduleRequest(text) {
-  return null;   /* M2 实现：解析「今天学数学两小时」类请求 */
+  /* 「每天/每周」是任务信号，不抢（任务检查在路由里更靠前，这里兜底防改路由时踩坑） */
+  if (TASK_CYCLE_RE.test(text)) return null;
+  const dur = _match_duration(text);
+  if (!dur) return null;
+  const hasScheduleVerb = /(帮我排|排一下|排个|排进|安排一下|重新安排|分配|留出|腾出|挤出)/.test(text);
+  const hasPastMarker = /了|刚|已经/.test(text);
+  const subj = _match_subject(text);
+  if (!hasScheduleVerb) {
+    /* 无排期动词时：必须是「祈使式」（无过去标记）+ 明确科目，才是排期 */
+    if (hasPastMarker || !subj) return null;
+  }
+  return { minutes: dur.minutes, subject: subj ? subj.subject : null, dayToken: extract_plan_day(text) };
 }
 
 async function _scheduleFromRequest(env, ctx, text, req) {
-  return '🛠 自动排期还在装修中，马上就来。';
+  const subject = req.subject || '其他';
+  const allocations = [{ subject, minutes: req.minutes }];
+  const r = await applySchedule(env, { date: req.dayToken, allocations });
+  if (r.error) return r.error;
+
+  const dayLabel = resolve_plan_day(req.dayToken, ctx.today).note;
+  const lines = [`🗓 已给${dayLabel}（${r.date}）排好时间块：`];
+  for (const s of r.newSlots) {
+    lines.push(`· ${s.start}-${s.end} ${s.subject}（${fmt_minutes(toMin2(s.end) - toMin2(s.start))}）`);
+  }
+  if (r.unplaced.length) {
+    lines.push(`⚠️ 还有 ${r.unplaced.map(u => `${u.subject} ${fmt_minutes(u.minutes)}`).join('、')} 没排下 —— 这天空档不够。`);
+  }
+  lines.push('不满意就说「撤销」，或直接说怎么改。');
+  return lines.join('\n');
 }
 
+function toMin2(t) {
+  const [h, m] = String(t).split(':').map(Number);
+  return h * 60 + m;
+}
+
+/* ================= 弹性任务（快车道创建 + 卡片确认） ================= */
+
+const TASK_CYCLE_RE = /(每天|每日|每周)/;
+
+/** 「每天背半小时单词」→ 弹性任务草稿。返回 task 草稿或 null。 */
+function _matchTaskRequest(text) {
+  if (!TASK_CYCLE_RE.test(text)) return null;
+  const dur = _match_duration(text);
+  if (!dur) return null;
+  const subj = _match_subject(text);
+  /* 「背单词」没命中科目同义词但有学习动词也认 —— 名字取原文里的动宾 */
+  if (!subj && !/背|读|刷|练|复习|听|写/.test(text)) return null;
+  const cycle = /每周/.test(text) ? 'weekly' : 'daily';
+  const nameM = /(背|读|刷|练|复习|听|写)([^，。,.\s]{0,8})/.exec(text);
+  const name = nameM ? (nameM[1] + nameM[2]).slice(0, 30) : (subj ? subj.subject : '学习任务');
+  return {
+    task: {
+      name: name || '学习任务',
+      aliases: [],
+      subject: subj ? subj.subject : '其他',
+      targetMinutes: dur.minutes,
+      cycle,
+      priority: 2
+    }
+  };
+}
+
+export async function createTask(env, task) {
+  const { data } = await readDoc(env, 'agent_tasks');
+  const doc = data && typeof data === 'object' ? data : {};
+  const tasks = Array.isArray(doc.tasks) ? doc.tasks : [];
+  const full = {
+    id: newId(),
+    name: String(task.name || '学习任务').slice(0, 60),
+    aliases: Array.isArray(task.aliases) ? task.aliases.slice(0, 8).map(a => String(a).slice(0, 30)) : [],
+    subject: String(task.subject || '其他').slice(0, 60),
+    targetMinutes: Math.max(1, Math.round(+task.targetMinutes || 30)),
+    cycle: ['daily', 'weekly', 'total'].includes(task.cycle) ? task.cycle : 'daily',
+    dueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(task.dueDate || '')) ? task.dueDate : '',
+    priority: Math.min(3, Math.max(1, Math.round(+task.priority || 2))),
+    archived: false,
+    createdAt: nowIso()
+  };
+  tasks.push(full);
+  await writeDoc(env, 'agent_tasks', { tasks });
+  return full;
+}
+
+/* ================= 按状态重排某天（LLM 细化，服务端校验） ================= */
+
+async function _adjustDay(env, ctx, text) {
+  const target = /明天/.test(text) ? _tomorrow(ctx.today) : ctx.today;
+  const { slots, note } = day_plan(ctx.plan, target);
+  if (!slots.length) {
+    const what = target === ctx.today ? '今天' : '明天';
+    return `${what}还没有安排。可以先说「重排本周计划」生成一份，再按状态调整。`;
+  }
+
+  const result = await llmChatJson(env,
+    '你是考研计划调度助手。用户对当天的安排提出了状态反馈，'
+    + '你要重排这天的时段表，输出严格 JSON：\n'
+    + '{"slots":[{"start":"HH:MM","end":"HH:MM","subject":"科目","topic":"具体内容(≤30字)"}],'
+    + '"note":"给用户的一句话说明(≤50字)"}\n'
+    + '重排原则：\n'
+    + '- 状态差就降量：总学习时长压到原来的 50%~70%，插入休息段（subject 填「休息」）\n'
+    + '- 优先保留薄弱科目或今天最重要的科目，砍掉次要的\n'
+    + '- 时段必须互不重叠、end>start、都在同一天内（00:00~23:59）\n'
+    + '- 保留吃饭（午饭/晚饭）和睡觉前的缓冲\n'
+    + '- 23:30 之后不安排学习\n'
+    + `现在是：${ctx.nowDesc}。已过去的时段不要重排，从当前时间之后的空档安排。\n`
+    + '只输出 JSON。',
+    `用户反馈：${text}\n\n当天原计划（JSON）：\n${JSON.stringify({ slots, note })}`,
+    { maxTokens: 1200 });
+
+  const newSlots = result?.slots;
+  if (!Array.isArray(newSlots) || !newSlots.length) {
+    return '⚠️ AI 没给出新安排，再试一次或换个说法。';
+  }
+  const err = validateSlots(newSlots);
+  if (err) return `⚠️ AI 生成的计划有问题（${err}），没有写入。再试一次吧。`;
+
+  const hadDay = !!(ctx.plan.days && ctx.plan.days[target]);
+  await pushUndo(env, {
+    kind: 'plan_day',
+    label: `${target} 的重排前原样`,
+    undo: { date: target, hadDay, slots, note }
+  });
+
+  const plan = { ...(ctx.plan || {}) };
+  plan.days = plan.days || {};
+  plan.days[target] = { slots: newSlots, note: String(result.note || '').slice(0, 200) };
+  await writeDoc(env, 'kaoyan', plan);
+
+  const nowHHMM = target === ctx.today ? ctx.hhmm : null;
+  const upcoming = nowHHMM
+    ? newSlots.filter(s => String(s.end || '99:99') > nowHHMM)
+    : newSlots;
+  const head = '🛠 已按你的状态调整（原计划已快照，说「撤销」可恢复）：\n';
+  if (!upcoming.length) {
+    return head + '\n今天剩下的时段已经不多，早点休息，明天再战。';
+  }
+  return head + '\n' + render_day(target, upcoming, result.note || '');
+}
+
+/* ================= 重排本周（LLM 生成，服务端校验 + 整周快照） ================= */
+
+async function _regenWeek(env, ctx, text) {
+  const sessions = Array.isArray(ctx.study.sessions) ? ctx.study.sessions : [];
+  const stats = week_stats(sessions, ctx.study.checkin || {}, ctx.plan, ctx.today, ctx.targetMinutes);
+
+  const weekDates = [];
+  for (let i = 1; i <= 7; i++) weekDates.push(_tomorrowN(ctx.today, i));
+
+  const context = {
+    '今天': ctx.nowDesc,
+    '考试倒计时': countdown_text(ctx.plan, ctx.today) || '未设置考试日期',
+    '考试日期': ctx.plan.examDate || '',
+    '未来7天日期列表': weekDates,
+    '未来7天星期': weekDates.map(weekdayCn),
+    '最近7天各科目时长': stats.by_subject,
+    '最近7天总时长': fmt_minutes(stats.total_minutes),
+    '最近7天学习天数': `${stats.active_days}/7`,
+    '每周目标小时': Math.round(ctx.targetMinutes / 60),
+    '用户附加要求': text
+  };
+  const result = await llmChatJson(env,
+    '你是考研408全程规划专家。根据用户背景和近况，生成未来 7 天的学习计划，'
+    + '输出严格 JSON：\n'
+    + '{"days":{"YYYY-MM-DD":{"slots":[{"start":"HH:MM","end":"HH:MM",'
+    + '"subject":"科目","topic":"具体内容(≤30字)"}],"note":"当天要点(≤40字)"}},'
+    + '"template":{"1":[{"start":"HH:MM","end":"HH:MM","subject":"科目"}]},'
+    + '"summary":"本周整体思路(≤80字)"}\n'
+    + 'template 是每周模板，键 "0"~"6"（"0"是周日），只放每天固定框架，可以只给常用的几天。\n'
+    + 'days 的日期从明天开始连续 7 天，必须与用户给出的日期列表完全一致。\n'
+    + '科目只能在：数学/英语/政治/数据结构/操作系统/计算机组成原理/计算机网络/休息/锻炼 中选。\n'
+    + '原则：\n'
+    + '- 上午（9:00-12:00）给数学或难点科目，下午给 408 科目，晚上给英语/政治/复盘\n'
+    + '- 单时段 1~3 小时，时段互不重叠、end>start\n'
+    + '- 每天留出吃饭时间；每周留半天整休\n'
+    + '- 遵守用户给出的每天可用时间和阶段侧重\n'
+    + '- topic 要具体到章节/题型（如「王道DS第3章 栈与队列课后题」），不许写空话\n'
+    + '只输出 JSON。',
+    JSON.stringify(context), { maxTokens: 3500, model: undefined });
+
+  const days = result?.days;
+  if (!days || typeof days !== 'object' || !Object.keys(days).length) {
+    return '⚠️ AI 没生成出计划，再试一次。';
+  }
+  const want = new Set(weekDates);
+  const got = new Set(Object.keys(days));
+  if (want.size !== got.size || [...want].some(d => !got.has(d))) {
+    return `⚠️ AI 生成的日期对不上（期望 ${weekDates.slice(0, 3).join('、')}…），没有写入。再试一次。`;
+  }
+  for (const [dstr, dayObj] of Object.entries(days)) {
+    const err = validateSlots(dayObj && dayObj.slots);
+    if (err) return `⚠️ AI 生成的 ${dstr} 计划有问题（${err}），没有写入。再试一次。`;
+  }
+
+  /* 整周快照（受影响的每一天 + 旧模板），一条撤销全回去 */
+  const oldDays = {};
+  for (const d of weekDates) {
+    oldDays[d] = ctx.plan.days && ctx.plan.days[d] ? { slots: ctx.plan.days[d].slots, note: ctx.plan.days[d].note || '' } : null;
+  }
+  await pushUndo(env, {
+    kind: 'plan_week',
+    label: `重排本周（${weekDates[0]} ~ ${weekDates[6]}）`,
+    undo: { dates: weekDates, days: oldDays, template: ctx.plan.template || null }
+  });
+
+  const plan = { ...(ctx.plan || {}) };
+  plan.days = { ...(plan.days || {}) };
+  for (const [d, dayObj] of Object.entries(days)) {
+    plan.days[d] = { slots: dayObj.slots, note: String(dayObj.note || '').slice(0, 200) };
+  }
+  if (result.template && typeof result.template === 'object') plan.template = result.template;
+  if (result.summary) plan.lastSummary = String(result.summary).slice(0, 200);
+  await writeDoc(env, 'kaoyan', plan);
+
+  const out = ['🗓 已生成未来 7 天计划（说「撤销」可整周回滚）'];
+  if (result.summary) out.push(String(result.summary));
+  out.push('');
+  out.push('▼ 明天');
+  const { slots: tmSlots, note: tmNote } = day_plan(plan, weekDates[0]);
+  out.push(render_day(weekDates[0], tmSlots, tmNote));
+  out.push('');
+  out.push('发「今天安排」看今天完整版。');
+  return out.join('\n');
+}
+
+function _tomorrowN(today, n) {
+  const t = Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 1, +today.slice(8, 10)) / 86400000 + n;
+  return new Date(t * 86400000).toISOString().slice(0, 10);
+}
+
+/* ================= 周报（M3 接 LLM 叙述，先给数据版） ================= */
+
 async function _weeklyReport(env, ctx) {
-  return '🛠 周报还在装修中，马上就来。';
+  const sessions = Array.isArray(ctx.study.sessions) ? ctx.study.sessions : [];
+  const stats = week_stats(sessions, ctx.study.checkin || {}, ctx.plan, ctx.today, ctx.targetMinutes);
+  const lines = [`📊 最近 7 天（${stats.start} ~ ${stats.end}）`,
+    `总计 ${fmt_minutes(stats.total_minutes)}，日均 ${fmt_minutes(stats.daily_avg_minutes)}`,
+    `学习 ${stats.active_days}/7 天，连续 ${stats.streak} 天，打卡 ${stats.checkin_days} 天`];
+  const subjects = Object.entries(stats.by_subject).slice(0, 8);
+  if (subjects.length) {
+    lines.push('科目分布：' + subjects.map(([k, v]) => `${k} ${fmt_minutes(v)}`).join('，'));
+  }
+  if (stats.adherence !== null) lines.push(`计划符合度 ${Math.round(stats.adherence * 100)}%`);
+  return lines.join('\n');
 }

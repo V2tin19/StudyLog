@@ -50,6 +50,7 @@ const Agent = {
     });
 
     this.loadHistory();
+    this.loadTasks();
     /* 计划后台拉新，拉到就重画仪表盘（不重画对话，避免打断） */
     if (this.hasToken && typeof Kaoyan !== 'undefined') {
       Kaoyan.pullPlan().then(() => this._refreshDash()).catch(() => {});
@@ -112,7 +113,45 @@ const Agent = {
           </div>
           ${slotHtml}
         </div>
+      </div>
+      <div class="card mb-16" id="agent-tasks" style="display:none;">
+        <div class="card-title"><span>弹性任务</span></div>
+        <div id="agent-task-list"></div>
       </div>`;
+  },
+
+  /* 弹性任务进度条（异步拉，没任务时整卡隐藏） */
+  async loadTasks() {
+    if (!this.hasToken) return;
+    const wrap = document.getElementById('agent-tasks');
+    const list = document.getElementById('agent-task-list');
+    if (!wrap || !list) return;
+    try {
+      const res = await fetch('/api/admin/agent/tasks', {
+        headers: { authorization: 'Bearer ' + Cloud.getToken() }
+      });
+      const data = await Cloud._readJson(res, '读取任务');
+      const tasks = (data.tasks || []).filter(t => !t.archived)
+        .sort((a, b) => (a.priority || 2) - (b.priority || 2));
+      if (!tasks.length) { wrap.style.display = 'none'; return; }
+      wrap.style.display = '';
+      list.innerHTML = tasks.slice(0, 4).map(t => {
+        const pct = Math.min(100, Math.round((t.doneMinutes || 0) / Math.max(1, t.targetMinutes) * 100));
+        const cycleCn = t.cycle === 'weekly' ? '每周' : t.cycle === 'total' ? '累计' : '每天';
+        const done = pct >= 100;
+        return `<div class="list-item" style="display:block;padding:8px 12px;">
+          <div class="flex gap-8 items-center">
+            <span class="text-sm" style="min-width:110px;">${Utils.esc(t.name)}<span class="text-sm" style="color:var(--text-muted);"> ${cycleCn}</span></span>
+            <div style="flex:1;height:8px;background:var(--bg-hover);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:${done ? 'var(--accent-green)' : 'var(--accent-blue)'};border-radius:4px;"></div>
+            </div>
+            <span class="text-sm" style="min-width:90px;text-align:right;">${done ? '✅ ' : ''}${Study.formatDuration(t.doneMinutes || 0)}/${Study.formatDuration(t.targetMinutes)}</span>
+          </div>
+        </div>`;
+      }).join('');
+    } catch {
+      wrap.style.display = 'none';   /* 没令牌/没数据就安静地不显示 */
+    }
   },
 
   _weekday(dateStr) {
@@ -121,7 +160,10 @@ const Agent = {
 
   _refreshDash() {
     const el = document.getElementById('agent-dash');
-    if (el && App.currentPage === 'agent') el.innerHTML = this._dashHtml();
+    if (el && App.currentPage === 'agent') {
+      el.innerHTML = this._dashHtml();
+      this.loadTasks();
+    }
   },
 
   /* ============ 对话 ============ */
@@ -185,6 +227,23 @@ const Agent = {
           </div>
         </div></div>`;
     }
+    if (card.type === 'task_confirm') {
+      const t = card.payload?.task || {};
+      const cycleCn = t.cycle === 'weekly' ? '每周' : t.cycle === 'total' ? '累计' : '每天';
+      return `<div class="chat-msg chat-agent"><div class="chat-card" data-card="${Utils.esc(card.id)}">
+          <div class="chat-card-title">🎯 立个弹性任务？</div>
+          <div class="list-item" style="padding:6px 0;">
+            <div class="list-item-main">
+              <div class="list-item-title">${Utils.esc(t.name || '')} · ${cycleCn} ${Study.formatDuration(t.targetMinutes || 0)}</div>
+              <div class="list-item-sub">科目：${Utils.esc(t.subject || '')} · 完成学习自动计入进度</div>
+            </div>
+          </div>
+          <div class="chat-card-actions">
+            <button class="btn btn-sm btn-primary" onclick="Agent.confirmCard('${Utils.esc(card.id)}')">确立</button>
+            <button class="btn btn-sm btn-secondary" onclick="Agent.cancelCard('${Utils.esc(card.id)}')">算了</button>
+          </div>
+        </div></div>`;
+    }
     return '';
   },
 
@@ -212,7 +271,11 @@ const Agent = {
       const r = await this._post({ text, source: 'web' });
       /* 服务端已把对话存好，重拉一遍保持多端一致 */
       await this.loadHistory();
-      if (r.reply && !r.cards.length) { /* 纯文本回复已包含在历史里 */ }
+      /* 排期/撤销会改云端计划，顺手拉新计划刷仪表盘（失败安静） */
+      if (typeof Kaoyan !== 'undefined' && Kaoyan.pullPlan) {
+        Kaoyan.pullPlan().then(() => this._refreshDash()).catch(() => {});
+      }
+      void r;
     } catch (err) {
       alert('发送失败：' + err.message);
       if (input) input.value = text;   /* 还给用户，别丢字 */
