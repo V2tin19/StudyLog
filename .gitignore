@@ -30,3 +30,6 @@ build/
 
 # 旧数据迁移用的导入文件（用完即删）
 diary-import-*.json
+# Python
+__pycache__/
+*.pyc
