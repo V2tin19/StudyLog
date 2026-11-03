@@ -244,6 +244,17 @@ const Agent = {
           </div>
         </div></div>`;
     }
+    if (card.type === 'daylog_confirm') {
+      return `<div class="chat-msg chat-agent"><div class="chat-card" data-card="${Utils.esc(card.id)}">
+          <div class="chat-card-title">📔 写今天的日志？</div>
+          <div class="list-item-sub" style="margin:4px 0 8px;">原话：${Utils.esc(card.payload?.raw || '')}</div>
+          <div class="text-sm" style="color:var(--text-muted);margin-bottom:8px;">AI 会结合当天计划表和学习记录补成完整日志，量化指标自动算。</div>
+          <div class="chat-card-actions">
+            <button class="btn btn-sm btn-primary" onclick="Agent.confirmCard('${Utils.esc(card.id)}')">写进日志</button>
+            <button class="btn btn-sm btn-secondary" onclick="Agent.cancelCard('${Utils.esc(card.id)}')">算了</button>
+          </div>
+        </div></div>`;
+    }
     return '';
   },
 

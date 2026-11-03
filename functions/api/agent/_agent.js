@@ -21,6 +21,7 @@ import { allocateDay, resolve_plan_day, extract_plan_day } from './_scheduler.js
 import { readDoc, writeDoc, newId, nowIso } from './_store.js';
 import { llmChat, llmChatJson, LLMError } from '../_llm.js';
 import { normalizeSession, parseStudyDoc } from '../admin/study-session.js';
+import { buildDayLog, saveLog, deleteLog } from './_logs.js';
 
 /* ---------------------------------------------------------------
  * 意图正则（与 handlers.py 同口径）
@@ -35,6 +36,7 @@ export const UNDO_RE = /撤销|记错了|删掉刚才|撤回/;
 export const CHECKIN_RE = /^打卡$|^打卡了|^补打卡|打个卡/;
 export const EXAM_DATE_RE = /(\d{4})[-年/.](\d{1,2})[-月/.](\d{1,2})/;
 export const HELP_RE = /^帮助$|^菜单$|^功能|^help|^你能干|怎么用|^指令/;
+export const DAYLOG_RE = /^(?:写日志|记日志|补日志|今日日志|今天日志|日志)[:：]?\s*([\s\S]*)$/;
 
 export const HELP_TEXT = [
   '📖 我能帮你做这些（直接说人话就行）：',
@@ -42,6 +44,8 @@ export const HELP_TEXT = [
   '· 查安排：「今天安排」「现在该学什么」「明天计划」',
   '· 查统计：「今天学了多久」「本周学了多少」',
   '· 排期：「今天学数学两小时」（AI 直接排好时间块，可撤销）',
+  '· 立任务：「每天背半小时单词」（弹性任务，进度条自动走）',
+  '· 写日志：「写日志：数学卡壳了，有点累」（AI 结合计划表补成完整日志 + 量化）',
   '· 打卡 / 撤销：「打卡」「撤销刚才那条」',
   '· 设考试日期：「考试日期 2026-12-26」'
 ].join('\n');
@@ -160,6 +164,8 @@ export async function undoLast(env) {
       const td = doc && typeof doc === 'object' ? doc : {};
       td.tasks = (Array.isArray(td.tasks) ? td.tasks : []).filter(t => t.id !== entry.undo.taskId);
       await writeDoc(env, 'agent_tasks', td);
+    } else if (entry.kind === 'day_log') {
+      await deleteLog(env, entry.undo.date);
     } else {
       return '这条操作类型不支持撤销。';
     }
@@ -289,19 +295,38 @@ async function _route(env, text, source) {
   /* ---- 9. 查统计 ---- */
   if (STATS_RE.test(text)) return finish(await _stats(env, ctx, text));
 
-  /* ---- 10. 周报（M3） ---- */
+  /* ---- 10. 周报 ---- */
   if (REPORT_RE.test(text)) return finish(await _weeklyReport(env, ctx));
+
+  /* ---- 10.5 写日志：「写日志：今天数学卡壳了」 ---- */
+  const logM = DAYLOG_RE.exec(text);
+  if (logM) {
+    const raw = logM[1].trim();
+    if (!raw) {
+      return finish('把今天的情况一句话说给我（「写日志：数学卡壳了，有点累」），我结合计划表和记录帮你补成完整日志。');
+    }
+    const draft = await _draftDayLogCard(env, doc, raw);
+    return finish(draft.reply, draft.cards);
+  }
 
   /* ---- 11. 查计划 ---- */
   if (QUERY_RE.test(text)) return finish(await _queryPlan(env, ctx, text));
 
   /* ---- 12. 学习记录：LLM 兜底（确实像在说学习才问 LLM，省 token） ---- */
   if (/学|背|刷|练|复习|做.{0,4}题|错题|笔记|网课/.test(text)) {
-    const sessions = await llmExtractSessions(env, text, ctx.nowDesc);
+    let sessions = [];
+    try {
+      sessions = await llmExtractSessions(env, text, ctx.nowDesc);
+    } catch (e) {
+      if (!(e instanceof LLMError)) throw e;
+      /* 没 key 或 LLM 挂了：抽不出结构化记录，转日志原话兜底（晚间催日志的主路径） */
+    }
     if (sessions.length) {
       const draft = await _draftLogCard(env, ctx, doc, sessions);
       return finish(draft.reply, draft.cards);
     }
+    const draft = await _draftDayLogCard(env, doc, text);
+    return finish(draft.reply, draft.cards);
   }
 
   /* ---- 13. 闲聊兜底 ---- */
@@ -403,6 +428,30 @@ export async function confirmCard(env, cardId, override = null) {
     return { reply, cards: [] };
   }
 
+  if (card.type === 'daylog_confirm') {
+    const raw = (override && override.raw) ? override.raw : card.payload.raw;
+    try {
+      const { log } = await buildDayLog(env, { date: shanghaiToday(), raw });
+      await saveLog(env, shanghaiToday(), log);
+      await pushUndo(env, {
+        kind: 'day_log',
+        label: `${shanghaiToday()} 的日志`,
+        undo: { date: shanghaiToday() }
+      });
+      const m = log.metrics;
+      const reply = '📔 日志已写好（' + shanghaiToday() + '）：\n' + log.ai
+        + `\n\n—— 量化：实际 ${fmt_minutes(m.actualMin)}`
+        + (m.completionPct !== null ? ` / 计划 ${fmt_minutes(m.plannedMin)}（${m.completionPct}%）` : '')
+        + `，连续 ${m.streak} 天。在「考研」页可看。说「撤销」可删掉这篇。`;
+      doc.messages.push({ role: 'agent', text: reply, ts: nowIso(), cards: [] });
+      await saveChatDoc(env, doc);
+      return { reply, cards: [] };
+    } catch (e) {
+      await saveChatDoc(env, doc);
+      return { reply: `⚠️ 日志没写成：${e.message}`, cards: [] };
+    }
+  }
+
   await saveChatDoc(env, doc);
   return { reply: '这张卡片类型不认识，先忽略了。', cards: [] };
 }
@@ -470,6 +519,22 @@ async function _queryPlan(env, ctx, text) {
 function _tomorrow(today) {
   const n = Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 1, +today.slice(8, 10)) / 86400000 + 1;
   return new Date(n * 86400000).toISOString().slice(0, 10);
+}
+
+/* ================= 量化日志（原话 + AI 补全 + metrics） ================= */
+
+async function _draftDayLogCard(env, doc, raw) {
+  const id = 'c_' + newId();
+  doc.pending[id] = { type: 'daylog_confirm', payload: { raw }, ts: Date.now() };
+  await saveChatDoc(env, doc);
+  return {
+    reply: '把这句记进今天的日志？我会结合当天计划表和学习记录，帮你补成完整的一篇。',
+    cards: [{
+      id, type: 'daylog_confirm', title: '写今天的日志？',
+      payload: { raw }, actions: ['confirm', 'cancel'],
+      confirmText: '写进日志', cancelText: '算了'
+    }]
+  };
 }
 
 /* ================= 考试日期 ================= */
@@ -859,11 +924,12 @@ function _tomorrowN(today, n) {
   return new Date(t * 86400000).toISOString().slice(0, 10);
 }
 
-/* ================= 周报（M3 接 LLM 叙述，先给数据版） ================= */
+/* ================= 周报（数据代码算，LLM 只负责说话） ================= */
 
 async function _weeklyReport(env, ctx) {
   const sessions = Array.isArray(ctx.study.sessions) ? ctx.study.sessions : [];
   const stats = week_stats(sessions, ctx.study.checkin || {}, ctx.plan, ctx.today, ctx.targetMinutes);
+
   const lines = [`📊 最近 7 天（${stats.start} ~ ${stats.end}）`,
     `总计 ${fmt_minutes(stats.total_minutes)}，日均 ${fmt_minutes(stats.daily_avg_minutes)}`,
     `学习 ${stats.active_days}/7 天，连续 ${stats.streak} 天，打卡 ${stats.checkin_days} 天`];
@@ -872,5 +938,35 @@ async function _weeklyReport(env, ctx) {
     lines.push('科目分布：' + subjects.map(([k, v]) => `${k} ${fmt_minutes(v)}`).join('，'));
   }
   if (stats.adherence !== null) lines.push(`计划符合度 ${Math.round(stats.adherence * 100)}%`);
-  return lines.join('\n');
+
+  /* 有 LLM key 就让教练开口说话（心情从日记里拿，拿不到不影响主体） */
+  let narrative = '';
+  if (env.LLM_API_KEY) {
+    try {
+      const moods = await pickWeekMoods(env, ctx.today);
+      narrative = await llmChat(env, [
+        { role: 'system', content: '你是考研备考教练。根据给定的本周学习数据写一份周报，用纯文本（不要 markdown 标记），'
+          + '结构：\n1. 一句话总评（本周状态）\n2. 各科目情况（基于数据，点出偏科）\n'
+          + '3. 健康评估：解释分数构成（出勤/时长/计划符合/连续性/心态），指出最该改的一件事\n'
+          + '4. 下周建议：2~3 条，具体可执行，基于数据而非套话\n'
+          + '语气像熟悉学生的学长：直接、具体、有温度，不灌鸡汤。全文 ≤400 字。' },
+        { role: 'user', content: JSON.stringify({ stats, '本周日记心情': moods }) }
+      ], { maxTokens: 1200, temperature: 0.6 });
+    } catch { /* 叙述失败就用数据版 */ }
+  }
+  return lines.join('\n') + (narrative ? '\n\n' + narrative : '');
+}
+
+/** 最近 7 天日记的 mood 列表（diary 是真表，直接查） */
+async function pickWeekMoods(env, today) {
+  try {
+    const since = _tomorrowN(today, -7);
+    const { results } = await env.DB
+      .prepare('SELECT mood FROM diary WHERE date >= ? AND date <= ? AND mood != \'\'')
+      .bind(since, today)
+      .all();
+    return (results || []).map(r => r.mood).filter(Boolean);
+  } catch {
+    return [];
+  }
 }

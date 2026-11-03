@@ -60,6 +60,11 @@ const Kaoyan = {
         <div id="kaoyan-today">${this.renderToday(cached)}</div>
       </div>
 
+      <div class="card mb-16" id="kaoyan-daylog-card" style="display:none;">
+        <div class="card-title"><span>今日日志</span></div>
+        <div id="kaoyan-daylog"><div class="empty-state-text">正在读取…</div></div>
+      </div>
+
       <div class="card mb-16">
         <div class="card-title"><span>最近 7 天</span></div>
         ${this.renderWeek()}
@@ -76,6 +81,34 @@ const Kaoyan = {
 
     /* 云端拉新计划（异步），拉到就整页重画 */
     if (Cloud.getToken()) this.pullPlan();
+    /* 今日日志（异步；agent_logs 由助手写，这里只读） */
+    if (Cloud.getToken()) this.pullDayLog();
+  },
+
+  /* ============ 今日日志 ============ */
+  async pullDayLog() {
+    const card = document.getElementById('kaoyan-daylog-card');
+    if (!card) return;
+    try {
+      const res = await fetch('/api/admin/agent/logs?days=1', {
+        headers: { authorization: 'Bearer ' + Cloud.getToken() }
+      });
+      const data = await Cloud._readJson(res, '读取日志');
+      const log = data.logs && data.logs[Utils.today()];
+      if (!log) return;                      /* 没写日志就不亮卡片 */
+      const m = log.metrics || {};
+      const metricsBits = [`实际 ${Study.formatDuration(m.actualMin || 0)}`];
+      if (m.plannedMin > 0) metricsBits.push(`计划 ${Study.formatDuration(m.plannedMin)}（${m.completionPct}%）`);
+      metricsBits.push(`连续 ${m.streak || 0} 天`);
+      if (m.mood) metricsBits.push(`心态：${m.mood}`);
+      document.getElementById('kaoyan-daylog').innerHTML = `
+        <div class="text-sm" style="margin-bottom:6px;">${metricsBits.map(b => `<span class="badge badge-green" style="margin-right:6px;">${Utils.esc(b)}</span>`).join('')}</div>
+        ${log.raw ? `<div class="list-item-sub" style="margin-bottom:6px;">原话：${Utils.esc(log.raw)}</div>` : ''}
+        <div class="text-sm" style="color:var(--text-secondary);line-height:1.8;">${Utils.esc(log.ai || '').replace(/\n/g, '<br>')}</div>`;
+      card.style.display = '';
+    } catch {
+      /* 日志读不到就安静地不显示 */
+    }
   },
 
   _countdownHtml(plan) {
