@@ -1,1 +1,0 @@
-# 依赖 aiohttp / APScheduler，AstrBot 主 venv 已自带，无需额外安装
