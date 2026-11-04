@@ -12,12 +12,10 @@ const App = {
 
   pages: {
     timeline: { title: '时间线', render: (c) => Timeline.render(c) },
-    agent: { title: '助手', render: (c) => Agent.render(c) },
     dashboard: { title: '仪表盘', render: (c) => Dashboard.render(c) },
     diary: { title: '日记', render: (c) => Diary.renderDiaryPage(c) },
     study: { title: '阅读', render: (c) => Study.renderStudyPage(c) },
     focus: { title: '自习室', render: (c) => Focus.render(c) },
-    kaoyan: { title: '考研', render: (c) => Kaoyan.render(c) },
     schedule: { title: '日程', render: (c) => Extras.renderSchedulePage(c) },
     goals: { title: '目标', render: (c) => Extras.renderGoalsPage(c) },
     comments: { title: '留言', render: (c) => Comments.render(c) },

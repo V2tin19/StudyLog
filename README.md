@@ -1,161 +1,96 @@
-# StudyLog · 个人日常记录
-已部署到https://studylog-eo0.pages.dev/
+# StudyLog · 个人学习每日汇报
 
-该项目改自https://github.com/MrWonderA/daily-tracker 用于记录自己的学习日志，营造的在场感对我的学习有很大推动作用。每天的汇报也会让生活看上去更充实（大概）。
-
-本质一个前端小网页，通过Cloudflare部署到线上，日记的写作与同步数据使用CF提供的SQLite完成。
-
-AI写的踩坑记录都在DEPLOY.md，如果你也想构建一个的话记得看看。
+> **“每天写一篇学习与生活日报给朋友看，附带专注时长统计，营造每日汇报的在场感。”**  
+> 线上公开主页：[https://studylog-eo0.pages.dev/](https://studylog-eo0.pages.dev/)  
+> 站主写作台入口：`/write`（需暗号解锁）
 
 ---
 
-## 技术栈
+## 1. 这是什么
 
-| 技术 | 说明 |
-|------|------|
-| HTML5 | 语义化标签，SPA 架构 |
-| CSS3 | CSS 自定义属性（主题变量）、Flexbox/Grid 响应式布局 |
-| JavaScript (ES6+) | 原生 JS，零框架零依赖 |
-| LocalStorage | 本机缓存与离线兜底 |
-| Cloudflare Pages Functions + D1 | 后端接口与数据库（可选，不绑定也能纯本地使用） |
-| SVG | 纯前端绘制图表（饼图、柱状图、折线图） |
+StudyLog 是一个极简主义的个人日报与公开分享站点：
+- **给朋友看（公开页 `/`）**：按月按天浏览每日学习汇报、阅读书单、个人目标、公开日程；访客可以在留言簿留言，或给站长递一杯热咖啡打气。
+- **给自己写（写作台 `/write`）**：带暗号门禁，支持日记写作、心情曲线、便签草稿、复盘模板、学习时长台账、访客留言与荐书审核。
+- **数据与同步**：基于 Cloudflare Pages Functions + D1 (SQLite) 云端存储；同时深度支持 LocalStorage 离线兜底与增量合并，无网也能顺畅写作，联网自动对齐。
+
+> 💡 **架构拆分说明**：原探索中的考研自然语言排期与 AI 智能体专项，已全面拆分为独立专属工程 **[Inchi (寸序)](https://github.com/V2tin19/Inchi)**。本仓库专注作为纯粹、高可靠的日报公开站与写作台。
 
 ---
 
-## 目录结构
+## 2. 技术栈
+
+| 层次 | 技术 | 说明 |
+|---|---|---|
+| **前端展现** | HTML5 + CSS3 + 原生 ES6+ JS | 零框架、零打包依赖、毫秒级首屏加载 |
+| **视觉体系** | 柔和高雅双主题 | 亮色与暗色模式自适应，纯 SVG 轻量图表 |
+| **云端存储** | Cloudflare D1 (SQLite) | 免费额度充足的边缘无服务器关系型数据库 |
+| **后端接口** | Cloudflare Pages Functions | 边缘 Serverless 运行，保障写入令牌校验 |
+| **离线能力** | LocalStorage + 冲突合并 | 写作台本地优先，断网照常写，联网自动推 |
+
+---
+
+## 3. 目录结构
 
 ```
 StudyLog/
-├── index.html              # 公开页（站点根路径 /，给朋友看）
-├── write.html              # 写作台入口（/write，含门禁遮罩）
-├── schema.sql              # D1 数据库建表语句
-├── DEPLOY.md               # 部署到 Cloudflare 的完整手册
-├── robots.txt              # 搜索引擎爬虫配置
-├── .gitignore
-├── LICENSE                 # MIT 开源协议
-├── README.md
+├── index.html              # 公开页入口（/）
+├── write.html              # 站主写作台入口（/write）
+├── schema.sql              # D1 数据库完整建表语句
+├── robots.txt              # 爬虫策略（全站 noindex 保护隐私）
+├── 6f79d00645e785a82e97.txt # 站点域名所有权校验令牌
+├── docs/                   # 运维与接入文档
+│   ├── DEPLOY.md           # Cloudflare Pages 部署手册
+│   ├── TURNSTILE.md        # 人机验证接入说明
+│   └── archive/            # 历史规划与备忘归档
 │
 ├── css/
-│   └── style.css           # 全局样式（含亮/暗双主题、响应式）
+│   └── style.css           # 全局样式（双主题、响应式栅格）
 │
 ├── js/
-│   ├── app.js              # 主控制器 & Hash 路由
-│   ├── public-site.js      # 公开页渲染逻辑
-│   ├── lock.js             # 写作台门禁（没令牌只显示锁屏）
+│   ├── app.js              # 写作台路由与模块调度
+│   ├── public-site.js      # 公开页渲染引擎
+│   ├── lock.js             # 写作台令牌门禁遮罩
 │   └── modules/
-│       ├── storage.js      # LocalStorage 统一 CRUD
-│       ├── utils.js        # 工具函数（日期、DOM、SVG 图表）
-│       ├── diary.js        # 日记 / 心情 / 便签 / 复盘
-│       ├── study.js        # 学习 / 任务 / 书籍 / 技能 / 计时
-│       ├── dashboard.js    # 仪表盘数据聚合 / 图表渲染
-│       ├── extras.js       # 日程表 / 目标清单
-│       ├── kaoyan.js       # 考研页（今日计划 / 倒计时 / 最近七天）
-│       ├── settings.js     # 主题 / 备份 / 数据管理 / 云端同步入口
-│       ├── cloud.js        # 云端请求封装（令牌校验、读写接口）
-│       └── sync.js         # 自动同步（打开拉取、保存即上传、失败重试）
+│       ├── diary.js        # 日记正文、心情、便签
+│       ├── study.js        # 学习记录、书籍、技能、打卡
+│       ├── extras.js       # 日程表、目标清单
+│       ├── dashboard.js    # 仪表盘统计与图表
+│       ├── comments.js     # 留言管理（审核、隐藏、拉黑）
+│       ├── suggestions.js  # 书目与目标推荐审核
+│       ├── settings.js     # 备份导入导出、暗号管理
+│       ├── storage.js      # 本地持久化抽象
+│       ├── cloud.js        # 云端 API 客户端封装
+│       └── sync.js         # 增量安全同步引擎
 │
-├── functions/              # Cloudflare Pages Functions（后端）
-│   └── api/
-│       ├── _shared.js          # 后端公共工具
-│       ├── diary/
-│       │   ├── index.js        # GET  /api/diary        公开读列表
-│       │   └── [date].js       # GET  /api/diary/:date  公开读单篇
-│       └── admin/
-│           ├── diary.js        # 写入接口（校验令牌，唯一真正的权限关卡）
-│           ├── doc.js          # 展示型数据读写（study/schedule/goals/focus/kaoyan）
-│           ├── kaoyan-plan.js  # 考研计划读写（QQ bot / 外部 AI agent 的修改入口）
-│           └── study-session.js# 学习记录服务端合并写 + 打卡（bot 用）
-│
-└── bot/                    # 考研 QQ Bot（跑在自己的服务器上，见 bot/README.md）
-    ├── main.py             # 入口：NapCat 连接 + 定时推送
-    ├── handlers.py         # 意图路由（录入/查计划/调状态/周报）
-    ├── nlu.py              # 日期解析 + 自然语言录入快车道（47 个用例）
-    ├── llm.py              # LLM 客户端（OpenAI 兼容）
-    ├── planner.py          # 计划模型 / 统计 / 健康分
-    ├── napcat.py           # NapCat(OneBot v11) WebSocket 客户端
-    └── cfstore.py          # Cloudflare API 客户端
+└── functions/api/          # Cloudflare Pages Functions
+    ├── _shared.js          # 鉴权与通用工具
+    ├── _suggest.js         # 荐书/荐目标公共工厂
+    ├── diary/              # 公开只读日记 API
+    ├── comments/           # 访客留言 API（带限流、蜜罐、黑名单）
+    ├── suggestions/        # 访客荐书 API
+    ├── goal-suggestions/   # 访客目标推荐 API
+    └── admin/              # 需令牌校验的站长管理 API
+        ├── diary.js        # 日记提交与删除
+        ├── doc.js          # 展示型文档聚合（study/schedule/goals/focus）
+        ├── comments.js     # 留言审核/回复/删除
+        ├── suggestions.js  # 荐读处理
+        └── blocklist.js    # 违规 IP 拉黑
 ```
 
 ---
 
-## 快速开始
+## 4. 快速开始与部署
 
-### 本地使用
-直接双击 `write.html` 在浏览器打开即可（写作台在本地模式下无需任何服务器）。首次会看到锁屏，点「没有令牌？仅本地使用」即可进入 —— 这种模式下数据只存在本机。
+详细图文操作请见 **[docs/DEPLOY.md](docs/DEPLOY.md)**。
 
-### 部署上线
-推荐 **Cloudflare Pages + D1**，免费额度足够个人使用，且能实现「只有我能写、朋友只能看」。
-
-完整步骤见 **[DEPLOY.md](DEPLOY.md)**，大致是：
-
-1. Cloudflare 建 D1 数据库，执行 `schema.sql` 建表
-2. Pages 连接本仓库，构建命令留空、输出目录填 `/`
-3. 给 Pages 项目绑定 D1，变量名必须是 `DB`
-4. 配置环境变量 `ADMIN_TOKEN`（你的写作暗号）
-5. 重新部署，在写作台 `/write` 输入暗号解锁 —— 之后写的每一篇都会自动同步
-
-**只使用纯本地版** 不绑定 D1 也能部署，写作台照常可用，只是公开页读不到数据。
-
-**其他静态平台**（GitHub Pages / Vercel / Netlify / Nginx）：`write.html` 写作台能正常工作，但公开页与 `/api/*` 依赖 Cloudflare Pages Functions，在这些平台上不可用。
+1. **创建 Cloudflare D1 数据库**，执行 `schema.sql` 完成数据表初始化；
+2. **连接 Cloudflare Pages**：输出目录填 `/`，构建命令留空；
+3. **绑定 D1 数据库**：变量名必须配置为 `DB`；
+4. **设置环境变量**：配置 `ADMIN_TOKEN` 为你的写作通行暗号；
+5. 在浏览器访问 `/write` 输入暗号解锁，开始记录你的第一篇学习日报。
 
 ---
 
-## 考研 Bot（QQ）
+## 5. 开源协议
 
-写作台之外，这个项目还带一个跑在自己服务器上的考研备考 QQ bot：在 QQ 里说「今天下午学了2小时数据结构」就能记录（日期由代码解析，当天的记当天），「今天状态不好」AI 就重排计划，「本周总结」出周报和健康分，每天早上自动推当日安排、周日晚自动推总结。数据与写作台「考研」页同源（D1），bot 与外部 AI agent 的接口说明见 **[bot/README.md](bot/README.md)**。
-
----
-
-## 设计理念
-
-- **极简留白** — 低饱和度柔和配色，护眼舒适
-- **傻瓜化操作** — 一键新增、一键查看、一键统计
-- **高私密性** — 数据存在你自己的 Cloudflare 数据库里，写入受服务端令牌保护；本机只是一份缓存
-- **零干扰** — 无广告、无社交、无推荐流
-- **全平台适配** — 移动端底部导航、桌面端侧边导航，严格响应式
-
----
-
-## 数据流
-
-```
-写作台保存  →  (1) 写入本机缓存，界面立刻更新
-            →  (2) 异步推送到你的 D1  →  朋友刷新公开页即可看到
-打开写作台  →  读本机缓存先渲染，再向云端对一次（拉回别处写的、补传本地新写的）
-```
-
-**冲突怎么处理**：同一天两边都有内容时，以 `updatedAt` 较新的为准；本机的图片数据不会被云端覆盖掉。
-
----
-
-## 隐私说明
-
-- 写作台无需注册、无需手机号；数据存在**你自己的** Cloudflare D1 数据库里
-- 写日记会自动同步到你的 D1；本机浏览器留一份缓存，断网时照常可写，联网后自动补传
-- 不绑定 D1 也能用 —— 那种情况下是纯本地模式，数据只存在浏览器里
-- 公开页对整个互联网可读，但带有 `noindex`，不会被搜索引擎收录
-- 写入权限由服务端校验令牌，访客无法修改或删除你的内容
-- 图片目前以 Base64 编码本地存储，暂不同步（后续接入 R2 对象存储后支持）
-- 支持手动导出备份文件
-- 不收集任何个人信息，无第三方统计或跟踪代码
-
----
-
-## 扩展接口
-
-项目采用模块化架构，预留了以下功能扩展接口：
-
-- **评论系统** — 访客留言 + 站主管理（规划中，见 DEPLOY.md 后续阶段）
-- **Cloudflare Access 登录** — 用邮箱登录替代手输令牌（规划中）
-- **R2 图片同步** — 日记配图上传对象存储（规划中）
-- 天气数据接入
-- 自定义配色方案
-- 数据加密存储
-
----
-
-## 许可
-
-[MIT License](LICENSE)
-
-Copyright (c) 2026
+[MIT License](LICENSE) (c) 2026 StudyLog Authors.
